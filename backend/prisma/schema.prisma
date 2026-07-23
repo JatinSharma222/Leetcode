@@ -15,15 +15,27 @@ model User {
   submissions  Submission[]
 }
 
-model Submission {
-  id        String             @id @default(uuid())
-  code      String
-  language  String
-  status    SubmissionStatus   @default(Processing)
-  output    String?
+model Question {
+  id          String       @id
+  title       String
+  description String
 
-  userId    String
-  user      User               @relation(fields: [userId], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id         String    @id @default(uuid())
+
+  questionId String
+  question   Question  @relation(fields: [questionId], references: [id])
+
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+
+  code       String
+  language   String
+  status     SubmissionStatus @default(Processing)
+  output     String?
 }
 
 enum SubmissionStatus {

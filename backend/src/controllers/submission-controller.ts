@@ -1,5 +1,9 @@
 import type { Request, Response } from "express";
 import { prisma } from "../db";
+import { createClient } from "redis";
+
+const client = createClient();
+client.connect();
 
 export const getSubmissions = async (req: Request, res: Response) => {
   try {
@@ -13,6 +17,9 @@ export const getSubmissions = async (req: Request, res: Response) => {
 
     const submissions = await prisma.submission.findMany({
       where: { userId },
+      orderBy: ({
+        createdAt: "desc",
+      } as any),
     });
 
     res.status(200).json({
@@ -27,7 +34,7 @@ export const getSubmissions = async (req: Request, res: Response) => {
 
 export const submitCode = async (req: Request, res: Response) => {
   try {
-    const { code, language } = req.body;
+    const { code, language, questionId } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -41,12 +48,24 @@ export const submitCode = async (req: Request, res: Response) => {
         userId,
         code,
         language,
+        questionId,
       },
     });
 
+    client.LPUSH(
+      "problems",
+      JSON.stringify({
+        submissionId: submission.id,
+        userId,
+        questionId,
+        code,
+        language,
+      }),
+    );
+
     res.status(201).json({
       message: "Code submitted successfully",
-      submission,
+      status: submission.status,
     });
   } catch (err) {
     res.status(500).json({
@@ -54,5 +73,3 @@ export const submitCode = async (req: Request, res: Response) => {
     });
   }
 };
-
-
