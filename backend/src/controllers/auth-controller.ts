@@ -41,17 +41,17 @@ export const signin = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
-    const isExist = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { username },
     });
 
-    if (!isExist) {
+    if (!user) {
       return res.status(400).json({
         message: "Username does not exist",
       });
     }
 
-    const isValid = await bcrypt.compare(password, isExist.password);
+    const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return res.status(401).json({
         message: "Invalid credentials",
@@ -60,8 +60,8 @@ export const signin = async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       {
-        userId: isExist.id,
-        username: isExist.username,
+        userId: user.id,
+        username: user.username,
       },
       process.env.JWT_SECRET!,
       {
