@@ -2,9 +2,9 @@ import { Router } from "express";
 import { auth } from "../middleware/auth";
 import { getSubmissions, submitCode } from "../controllers/submission-controller";
 
-const router = Router();
+export const submissionRouter = Router();
 
-router.post("/submit", auth, submitCode);
-router.get("/submissions", auth, getSubmissions);
+submissionRouter.post("/submit", auth, submitCode);
+submissionRouter.get("/submissions", auth, getSubmissions);
 
-export default router;
+export default submissionRouter;
