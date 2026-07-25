@@ -36,10 +36,13 @@ model Submission {
   language   String
   status     SubmissionStatus @default(Processing)
   output     String?
+
+  createdAt  DateTime  @default(now())
 }
 
 enum SubmissionStatus {
   Processing
   Success
   Failure
+  TLE
 }

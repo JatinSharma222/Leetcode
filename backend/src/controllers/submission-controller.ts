@@ -17,15 +17,16 @@ export const getSubmissions = async (req: Request, res: Response) => {
 
     const submissions = await prisma.submission.findMany({
       where: { userId },
-      orderBy: ({
+      orderBy: {
         createdAt: "desc",
-      } as any),
+      },
     });
 
     res.status(200).json({
       submissions,
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({
       message: "Internal server error",
     });
@@ -68,6 +69,7 @@ export const submitCode = async (req: Request, res: Response) => {
       status: submission.status,
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({
       message: "Internal server error",
     });
