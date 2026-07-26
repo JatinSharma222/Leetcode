@@ -1,0 +1,35 @@
+# dependencies
+node_modules
+
+# build outputs (covers apps/backend/dist, apps/worker/dist, apps/frontend/dist, packages/db/dist, etc.)
+dist
+build
+.turbo
+
+# env files (never commit real secrets; .env.example is fine and NOT matched by this)
+.env
+.env.local
+.env.*.local
+
+# prisma generated client (packages/db/generated)
+generated/
+
+# logs
+*.log
+npm-debug.log*
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# editor noise
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# worker code-exec scratch files
+apps/worker/code/*
+!apps/worker/code/.gitkeep

@@ -1,0 +1,24 @@
+{
+  "name": "leetcode-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:backend": "turbo run dev --filter=backend",
+    "dev:worker": "turbo run dev --filter=worker",
+    "dev:frontend": "turbo run dev --filter=frontend",
+    "lint": "turbo run lint",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "bun run --cwd packages/db db:migrate",
+    "db:studio": "bun run --cwd packages/db db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "bun@1.2.0"
+}
