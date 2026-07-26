@@ -8,35 +8,60 @@ datasource db {
 }
 
 model User {
-  id           String       @id @default(uuid())
-  username     String       @unique
-  password     String
-  submissions  Submission[]
-}
-
-model Question {
-  id          String       @id
-  title       String
-  description String
+  id          String       @id @default(uuid())
+  username    String       @unique
+  password    String
 
   submissions Submission[]
 }
 
+model Question {
+  id           String       @id
+  title        String
+  description  String
+
+  testCases    TestCase[]
+  submissions  Submission[]
+}
+
+model TestCase {
+  id             String   @id @default(uuid())
+
+  input          String
+  expectedOutput String
+
+  isHidden       Boolean  @default(true)
+
+  timeLimitMs    Int      @default(1000)
+  memoryLimitMb  Int      @default(256)
+
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id])
+}
+
 model Submission {
-  id         String    @id @default(uuid())
+  id             String             @id @default(uuid())
 
-  questionId String
-  question   Question  @relation(fields: [questionId], references: [id])
+  questionId     String
+  question        Question          @relation(fields: [questionId], references: [id])
 
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  userId         String
+  user           User              @relation(fields: [userId], references: [id])
 
-  code       String
-  language   String
-  status     SubmissionStatus @default(Processing)
-  output     String?
+  code           String
+  language       Language
 
-  createdAt  DateTime  @default(now())
+  status         SubmissionStatus  @default(Processing)
+  output         String?
+
+  executionTime  Int?
+  memoryUsed     Int?
+
+  passedTests    Int               @default(0)
+  totalTests     Int               @default(0)
+
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 }
 
 enum SubmissionStatus {
@@ -44,4 +69,12 @@ enum SubmissionStatus {
   Success
   Failure
   TLE
+  RE
+  CE
+}
+
+enum Language {
+  CPP
+  PYTHON
+  JAVASCRIPT
 }

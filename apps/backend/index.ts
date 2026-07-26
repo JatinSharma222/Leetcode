@@ -7,6 +7,8 @@ app.use(cors());
 app.use(express.json());
 app.use(appRouter);
 
-app.listen(3000, () => {
-  console.log("Server Listening at 3000");
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log(`Server Listening at http://localhost:${PORT}`);
 });
