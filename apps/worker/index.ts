@@ -108,5 +108,67 @@ client.connect().then(async () => {
         });
       }
     }
+
+    if (language === "javascript") {
+      console.log("Running users javascript code");
+      const filePath = __dirname + "/code/a.js";
+      fs.writeFileSync(filePath, code);
+
+      const { exitCode, output, timedOut } = await runWithTimeout(
+        "node",
+        [filePath],
+        TLE_MS,
+      );
+
+      console.log(exitCode, "timedOut:", timedOut);
+
+      if (timedOut) {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "TLE" },
+        });
+      } else if (exitCode === 0) {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "Success", output },
+        });
+      } else {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "Failure" },
+        });
+      }
+    }
+
+    if (language === "python") {
+      console.log("Running users python code");
+      const filePath = __dirname + "/code/a.py";
+      fs.writeFileSync(filePath, code);
+
+      const { exitCode, output, timedOut } = await runWithTimeout(
+        "python3",
+        [filePath],
+        TLE_MS,
+      );
+
+      console.log(exitCode, "timedOut:", timedOut);
+
+      if (timedOut) {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "TLE" },
+        });
+      } else if (exitCode === 0) {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "Success", output },
+        });
+      } else {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "Failure" },
+        });
+      }
+    }
   }
 });
