@@ -14,7 +14,8 @@
     "lint": "turbo run lint",
     "db:generate": "turbo run db:generate",
     "db:migrate": "bun run --cwd packages/db db:migrate",
-    "db:studio": "bun run --cwd packages/db db:studio"
+    "db:studio": "bun run --cwd packages/db db:studio",
+    "db:seed": "bun run --cwd packages/db db:seed"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
