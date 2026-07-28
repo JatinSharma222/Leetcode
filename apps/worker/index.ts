@@ -13,9 +13,10 @@ interface RunResult {
   timedOut: boolean;
 }
 
-function runWithTimeout(
+function runWithInput(
   cmd: string,
   args: string[],
+  input: string,
   timeoutMs: number,
 ): Promise<RunResult> {
   return new Promise((resolve) => {
@@ -32,12 +33,69 @@ function runWithTimeout(
       output += chunk.toString();
     });
 
+    proc.stdin.write(input);
+    proc.stdin.end();
+
     proc.on("exit", (exitCode) => {
       clearTimeout(timer);
       resolve({ exitCode, output, timedOut });
     });
   });
 }
+
+function normalize(s: string): string {
+  return s
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .trim();
+}
+
+
+interface LanguageRunner {
+  compile?: (sourcePath: string) => Promise<boolean>;
+  run: () => { cmd: string; args: string[] };
+}
+
+function getRunner(language: string, sourcePath: string): LanguageRunner | null {
+  if (language === "cpp") {
+    return {
+      compile: async () => {
+        const proc = spawn("clang++", [
+          "-std=c++17",
+          sourcePath,
+          "-o",
+          "./code/main",
+        ]);
+        const exitCode: number | null = await new Promise((resolve) => {
+          proc.on("exit", resolve);
+        });
+        return exitCode === 0;
+      },
+      run: () => ({ cmd: "./code/main", args: [] }),
+    };
+  }
+
+  if (language === "javascript") {
+    return {
+      run: () => ({ cmd: "node", args: [sourcePath] }),
+    };
+  }
+
+  if (language === "python") {
+    return {
+      run: () => ({ cmd: "python3", args: [sourcePath] }),
+    };
+  }
+
+  return null;
+}
+
+const EXTENSION_BY_LANGUAGE: Record<string, string> = {
+  cpp: "cpp",
+  javascript: "js",
+  python: "py",
+};
 
 client.connect().then(async () => {
   while (1) {
@@ -51,124 +109,108 @@ client.connect().then(async () => {
     const code = parsedResponse.code;
     const language = parsedResponse.language;
     const submissionId = parsedResponse.submissionId;
+    const questionId = parsedResponse.questionId;
     console.log("processing question for user " + parsedResponse.userId);
 
-    if (language === "cpp") {
-      console.log("Running users c++ code");
-      const filePath = __dirname + "/code/a.cpp";
-      fs.writeFileSync(filePath, code);
+    const extension = EXTENSION_BY_LANGUAGE[language];
+    const runner = extension ? getRunner(language, `${__dirname}/code/a.${extension}`) : null;
 
-      const responseCompiler = spawn("clang++", [
-        "-std=c++17",
-        filePath,
-        "-o",
-        "./code/main",
-      ]);
-
-      let exitCodeCompiler: number | null = null;
-      await new Promise<void>((resolve) => {
-        responseCompiler.on("exit", async (exitCode) => {
-          exitCodeCompiler = exitCode;
-          if (exitCode !== 0) {
-            await prisma.submission.update({
-              where: { id: submissionId },
-              data: { status: "Failure" },
-            });
-          }
-          resolve();
-        });
+    if (!runner || !extension) {
+      console.log("Unsupported language:", language);
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: { status: "Failure" },
       });
+      continue;
+    }
 
-      if (exitCodeCompiler !== 0) {
+    const sourcePath = `${__dirname}/code/a.${extension}`;
+    fs.writeFileSync(sourcePath, code);
+
+    if (runner.compile) {
+      const compiled = await runner.compile(sourcePath);
+      if (!compiled) {
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: { status: "Failure" },
+        });
         continue;
       }
+    }
 
-      const { exitCode, output, timedOut } = await runWithTimeout(
-        "./code/main",
-        [],
+    const testCases = await prisma.testCase.findMany({
+      where: { questionId },
+      orderBy: { order: "asc" },
+    });
+
+    if (testCases.length === 0) {
+      console.log("No test cases found for question", questionId);
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: { status: "Failure" },
+      });
+      continue;
+    }
+
+    let passedCount = 0;
+    let anyTimedOut = false;
+    let lastOutput = "";
+    const resultRows: {
+      testCaseId: string;
+      passed: boolean;
+      actualOutput: string;
+      timedOut: boolean;
+    }[] = [];
+
+    for (const testCase of testCases) {
+      const { cmd, args } = runner.run();
+      const { output, timedOut } = await runWithInput(
+        cmd,
+        args,
+        testCase.input,
         TLE_MS,
       );
 
-      console.log(exitCode, "timedOut:", timedOut);
+      const passed = !timedOut && normalize(output) === normalize(testCase.expectedOutput);
+      if (passed) passedCount++;
+      if (timedOut) anyTimedOut = true;
+      lastOutput = output;
 
-      if (timedOut) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "TLE" },
-        });
-      } else if (exitCode === 0) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Success", output },
-        });
-      } else {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Failure" },
-        });
-      }
+      resultRows.push({
+        testCaseId: testCase.id,
+        passed,
+        actualOutput: output,
+        timedOut,
+      });
     }
 
-    if (language === "javascript") {
-      console.log("Running users javascript code");
-      const filePath = __dirname + "/code/a.js";
-      fs.writeFileSync(filePath, code);
+    const status = anyTimedOut
+      ? "TLE"
+      : passedCount === testCases.length
+        ? "Success"
+        : "WrongAnswer";
 
-      const { exitCode, output, timedOut } = await runWithTimeout(
-        "node",
-        [filePath],
-        TLE_MS,
-      );
+    console.log(`${passedCount}/${testCases.length} passed, status: ${status}`);
 
-      console.log(exitCode, "timedOut:", timedOut);
-
-      if (timedOut) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "TLE" },
-        });
-      } else if (exitCode === 0) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Success", output },
-        });
-      } else {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Failure" },
-        });
-      }
-    }
-
-    if (language === "python") {
-      console.log("Running users python code");
-      const filePath = __dirname + "/code/a.py";
-      fs.writeFileSync(filePath, code);
-
-      const { exitCode, output, timedOut } = await runWithTimeout(
-        "python3",
-        [filePath],
-        TLE_MS,
-      );
-
-      console.log(exitCode, "timedOut:", timedOut);
-
-      if (timedOut) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "TLE" },
-        });
-      } else if (exitCode === 0) {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Success", output },
-        });
-      } else {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: { status: "Failure" },
-        });
-      }
-    }
+    await prisma.$transaction([
+      prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status,
+          output: lastOutput,
+          passedCount,
+          totalCount: testCases.length,
+        },
+      }),
+      prisma.submissionResult.createMany({
+        data: resultRows.map((r) => ({
+          submissionId,
+          testCaseId: r.testCaseId,
+          passed: r.passed,
+          actualOutput: r.actualOutput,
+          timedOut: r.timedOut,
+        })),
+      }),
+    ]);
   }
 });
