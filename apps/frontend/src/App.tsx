@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 
 import Auth from "./screens/Auth";
 import Dashboard from "./screens/Dashboard";
+import Editor from "./screens/Editor";
+import Submissions from "./screens/Submissions";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const token = localStorage.getItem("token");
@@ -22,6 +24,7 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        
         <Route
           path="/"
           element={
@@ -30,11 +33,31 @@ export function App() {
             </ProtectedRoute>
           }
         />
-        {/* Catch-all: redirect unknown routes to auth */}
-        <Route path="*" element={<Navigate to="/auth" replace />} />
+
+        <Route
+          path="/problem/:id"
+          element={
+            <ProtectedRoute>
+              <Editor />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/submissions"
+          element={
+            <ProtectedRoute>
+              <Submissions />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch-all: redirect unknown routes to dashboard */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
+

@@ -1,3 +1,4 @@
+console.log("starting...");
 import express from "express";
 import { appRouter } from "./src/routes/index";
 import cors from "cors";

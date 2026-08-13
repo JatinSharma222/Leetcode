@@ -1,41 +1,19 @@
-import { serve } from "bun";
-import index from "./index.html";
+import express from "express";
+import path from "node:path";
 
-const server = serve({
-  routes: {
-    // Serve index.html for all unmatched routes.
-    "/*": index,
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    "/api/hello": {
-      async GET(req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "GET",
-        });
-      },
-      async PUT(req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "PUT",
-        });
-      },
-    },
+const distDir = path.join(__dirname, "../dist");
 
-    "/api/hello/:name": async req => {
-      const name = req.params.name;
-      return Response.json({
-        message: `Hello, ${name}!`,
-      });
-    },
-  },
+// Serve static assets from build output directory
+app.use(express.static(distDir));
 
-  development: process.env.NODE_ENV !== "production" && {
-    // Enable browser hot reloading in development
-    hmr: true,
-
-    // Echo console logs from the browser to the server
-    console: true,
-  },
+// Fallback handler for SPA client routing
+app.use((_req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
 });
 
-console.log(`🚀 Server running at ${server.url}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Frontend Express server running at http://localhost:${PORT}`);
+});
