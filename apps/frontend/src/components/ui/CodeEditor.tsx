@@ -131,7 +131,7 @@ export default function CodeEditor({
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
-          className="flex-1 resize-none bg-transparent py-3 px-4 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 outline-none leading-6 caret-orange-500 selection:bg-orange-500/30 overflow-auto"
+          className="flex-1 resize-none bg-transparent py-3 px-4 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 outline-none leading-6 caret-circuit selection:bg-circuit/30 overflow-auto"
         />
       </div>
 

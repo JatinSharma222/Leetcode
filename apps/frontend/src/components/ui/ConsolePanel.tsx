@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { ChevronUp, ChevronDown, CheckCircle, XCircle, Terminal, Loader2 } from "lucide-react";
 import type { TestCase, SubmissionStatus } from "@/lib/types";
 import { Badge } from "./badge";
+import { TestStrip } from "./TestStrip";
 
 interface SubmissionResultView {
   status: SubmissionStatus;
@@ -56,7 +57,7 @@ export default function ConsolePanel({
             className="flex items-center gap-1.5 text-xs font-semibold text-neutral-300 hover:text-white transition-colors"
           >
             {isOpen ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronUp className="h-4 w-4 text-neutral-400" />}
-            <Terminal className="h-3.5 w-3.5 text-orange-500" />
+            <Terminal className="h-3.5 w-3.5 text-circuit" />
             Console & Test Results
           </button>
 
@@ -79,7 +80,7 @@ export default function ConsolePanel({
               >
                 Submission Result
                 {submissionResult && (
-                  <span className={`h-2 w-2 rounded-full ${isAccepted ? "bg-emerald-500" : "bg-rose-500"}`} />
+                  <span className={`h-2 w-2 rounded-full ${isAccepted ? "bg-pass" : "bg-fail"}`} />
                 )}
               </button>
             </div>
@@ -99,7 +100,7 @@ export default function ConsolePanel({
                     onClick={() => setSelectedCaseIndex(idx)}
                     className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
                       selectedCaseIndex === idx
-                        ? "bg-orange-500/20 text-orange-400 border border-orange-500/40"
+                        ? "bg-circuit/15 text-circuit border border-circuit/30"
                         : "bg-neutral-800/80 text-neutral-400 hover:text-white"
                     }`}
                   >
@@ -123,7 +124,7 @@ export default function ConsolePanel({
                     <p className="text-[11px] font-sans font-medium text-neutral-400 uppercase tracking-wider">
                       Expected Output
                     </p>
-                    <pre className="p-3 rounded-lg bg-[#08090d] border border-neutral-800 text-emerald-400 overflow-x-auto">
+                    <pre className="p-3 rounded-lg bg-[#08090d] border border-neutral-800 text-pass overflow-x-auto">
                       {currentTestCase.expectedOutput}
                     </pre>
                   </div>
@@ -141,7 +142,7 @@ export default function ConsolePanel({
                 </div>
               ) : isSubmitting ? (
                 <div className="py-6 flex items-center justify-center gap-2 text-neutral-400 font-sans">
-                  <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                  <Loader2 className="h-4 w-4 animate-spin text-circuit" />
                   Compiling and running your code against the test cases...
                 </div>
               ) : submissionResult ? (
@@ -149,13 +150,13 @@ export default function ConsolePanel({
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-3">
                       {isAccepted ? (
-                        <div className="flex items-center gap-2 text-emerald-400 font-sans font-bold text-base">
-                          <CheckCircle className="h-5 w-5 text-emerald-500" />
+                        <div className="flex items-center gap-2 text-pass font-sans font-semibold text-base">
+                          <CheckCircle className="h-5 w-5" />
                           Accepted
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-rose-400 font-sans font-bold text-base">
-                          <XCircle className="h-5 w-5 text-rose-500" />
+                        <div className="flex items-center gap-2 text-fail font-sans font-semibold text-base">
+                          <XCircle className="h-5 w-5" />
                           {STATUS_LABEL[submissionResult.status]}
                         </div>
                       )}
@@ -165,6 +166,12 @@ export default function ConsolePanel({
                       </Badge>
                     </div>
                   </div>
+
+                  <TestStrip
+                    total={submissionResult.totalCount ?? testCases.length}
+                    passed={submissionResult.passedCount ?? 0}
+                    allFailed={!isAccepted && submissionResult.status !== "WrongAnswer"}
+                  />
 
                   {submissionResult.output != null && submissionResult.output !== "" && (
                     <div className="space-y-1.5">
@@ -178,7 +185,7 @@ export default function ConsolePanel({
                   )}
                 </div>
               ) : pollTimedOut ? (
-                <div className="py-6 text-center text-amber-400 font-sans">
+                <div className="py-6 text-center text-pending font-sans">
                   Still processing on the server — check the Submissions page shortly for the result.
                 </div>
               ) : null}

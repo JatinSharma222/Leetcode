@@ -1,21 +1,21 @@
-import { Code2, Zap, Shield } from "lucide-react";
+import { Terminal as TerminalIcon, Zap, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const features = [
   {
-    icon: Code2,
-    title: "Curated Problems",
-    description: "Hand-picked challenges across all difficulty levels.",
+    icon: TerminalIcon,
+    title: "Real execution, not a linter",
+    description: "Your code actually compiles and runs against real test cases — no simulated results.",
   },
   {
     icon: Zap,
-    title: "Instant Feedback",
-    description: "Real-time code execution with detailed test results.",
+    title: "Instant feedback",
+    description: "Submit and watch the test strip fill in as your solution is judged.",
   },
   {
-    icon: Shield,
-    title: "Track Progress",
-    description: "Monitor your growth with detailed analytics.",
+    icon: CheckCircle2,
+    title: "A record that means something",
+    description: "Every submission is logged — pass counts, output, the works.",
   },
 ];
 
@@ -24,22 +24,22 @@ export default function AuthBanner() {
     <div id="auth-banner" className="flex flex-col gap-8">
       {/* Badge */}
       <div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium tracking-wide text-neutral-500 uppercase">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Open Platform
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-neutral-500">
+          <span className="h-1.5 w-1.5 rounded-full bg-pass" />
+          status: online
         </span>
       </div>
 
       {/* Headline */}
       <div className="space-y-4">
-        <h1 className="text-4xl font-bold leading-tight tracking-tight text-neutral-900 sm:text-5xl">
-          Practice with
+        <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl">
+          Write code.
           <br />
-          <span className="text-neutral-400">clarity.</span>
+          Run it <span className="text-circuit">for real.</span>
         </h1>
         <p className="max-w-md text-base leading-relaxed text-neutral-500">
-          A calm, focused workspace to sharpen your problem-solving skills. Write
-          code, run tests, and grow — without distractions.
+          A calm, focused workspace to sharpen your problem-solving skills — every
+          submission actually compiles and runs, no simulations.
         </p>
       </div>
 
@@ -49,7 +49,7 @@ export default function AuthBanner() {
       <div className="space-y-5">
         {features.map((feature) => (
           <div key={feature.title} className="flex items-start gap-3.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-circuit">
               <feature.icon className="h-4 w-4" strokeWidth={1.75} />
             </div>
             <div>

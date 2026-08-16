@@ -18,21 +18,25 @@ export default function StatsOverview({
   const percentSolved = totalQuestions > 0 ? Math.round((solvedCount / totalQuestions) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
-      <Card className="border border-neutral-200/80 bg-white p-4 shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mb-8">
+      <Card className="border border-neutral-200/80 bg-white p-4 shadow-none dark:border-neutral-800 dark:bg-neutral-900">
         <CardContent className="p-0 flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
-            <CheckCircle2 className="h-6 w-6" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-circuit/10 text-circuit">
+            <CheckCircle2 className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Problems Solved</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-neutral-900 dark:text-white">{solvedCount}</span>
-              <span className="text-xs text-neutral-400">/ {totalQuestions}</span>
+            <p className="font-mono text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              Solved
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-2xl font-semibold text-neutral-900 dark:text-white">
+                {solvedCount}
+              </span>
+              <span className="font-mono text-xs text-neutral-400">/ {totalQuestions}</span>
             </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
+            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
               <div
-                className="h-full bg-orange-500 rounded-full transition-all duration-500"
+                className="h-full bg-circuit rounded-full transition-all duration-500"
                 style={{ width: `${percentSolved}%` }}
               />
             </div>
@@ -40,26 +44,30 @@ export default function StatsOverview({
         </CardContent>
       </Card>
 
-      <Card className="border border-neutral-200/80 bg-white p-4 shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+      <Card className="border border-neutral-200/80 bg-white p-4 shadow-none dark:border-neutral-800 dark:bg-neutral-900">
         <CardContent className="p-0 flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
-            <Send className="h-6 w-6" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+            <Send className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Total Submissions</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-white">{totalSubmissions}</p>
+            <p className="font-mono text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              Submissions
+            </p>
+            <p className="font-display text-2xl font-semibold text-neutral-900 dark:text-white">{totalSubmissions}</p>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border border-neutral-200/80 bg-white p-4 shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+      <Card className="border border-neutral-200/80 bg-white p-4 shadow-none dark:border-neutral-800 dark:bg-neutral-900">
         <CardContent className="p-0 flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
-            <BarChart2 className="h-6 w-6" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-pass/10 text-pass">
+            <BarChart2 className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Acceptance Rate</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-white">{acceptanceRate}%</p>
+            <p className="font-mono text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              Acceptance
+            </p>
+            <p className="font-display text-2xl font-semibold text-neutral-900 dark:text-white">{acceptanceRate}%</p>
           </div>
         </CardContent>
       </Card>

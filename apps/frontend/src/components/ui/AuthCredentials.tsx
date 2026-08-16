@@ -179,7 +179,7 @@ export default function AuthCredentials() {
     <div id="auth-credentials" className="flex items-center justify-center">
       <Card className="w-full max-w-[420px] rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-xl shadow-neutral-200/50">
         <CardHeader className="px-6 pt-6 pb-0">
-          <CardTitle className="text-xl font-semibold text-neutral-900">
+          <CardTitle className="font-display text-xl font-semibold text-neutral-900">
             {activeTab === "login" ? "Welcome back" : "Create an account"}
           </CardTitle>
           <CardDescription className="text-sm text-neutral-500">
@@ -220,7 +220,7 @@ export default function AuthCredentials() {
             <TabsContent value="login" className="mt-5">
               <form onSubmit={handleLoginSubmit} noValidate className="space-y-4">
                 {signupSuccessMessage && (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  <div className="flex items-center gap-2 rounded-lg border border-pass/20 bg-pass/5 px-3 py-2 text-xs text-pass">
                     <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                     {signupSuccessMessage}
                   </div>

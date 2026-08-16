@@ -10,8 +10,6 @@ import { ApiError, fetchQuestions, fetchUserSubmissions } from "@/lib/api";
 export default function Submissions() {
   const navigate = useNavigate();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  // The submissions endpoint doesn't include the question title, so we fetch
-  // the question list once and build an id -> title lookup for display.
   const [questionTitles, setQuestionTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,32 +37,32 @@ export default function Submissions() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 font-sans dark:bg-neutral-950">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="mb-8 flex items-center justify-between border-b border-neutral-200/80 pb-6 dark:border-neutral-800">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
-              Submission <span className="text-orange-500">History</span>
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-neutral-900 dark:text-white sm:text-4xl">
+              Submission <span className="text-circuit">History</span>
             </h1>
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
               Review your code evaluation history and test case execution logs.
             </p>
           </div>
-          <Badge variant="orange" className="text-xs py-1 px-3">
+          <Badge variant="circuit" className="text-xs py-1 px-3 font-mono">
             {submissions.length} Total Submissions
           </Badge>
         </div>
 
         {error && (
-          <div className="mb-6 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-400">
+          <div className="mb-6 flex items-center gap-2 rounded-xl border border-fail/20 bg-fail/5 px-4 py-3 text-sm text-fail">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
           </div>
         )}
 
-        <div className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="overflow-hidden rounded-xl border border-neutral-200/80 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-neutral-200 bg-neutral-50/80 text-xs font-semibold text-neutral-500 uppercase tracking-wider dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400">
               <tr>
@@ -82,7 +80,7 @@ export default function Submissions() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">
                     <div className="inline-flex items-center gap-2">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-circuit border-t-transparent" />
                       Loading submissions...
                     </div>
                   </td>
@@ -97,17 +95,17 @@ export default function Submissions() {
                 submissions.map((sub) => (
                   <tr
                     key={sub.id}
-                    className="group transition-colors hover:bg-orange-500/5 dark:hover:bg-neutral-800/50"
+                    className="group transition-colors hover:bg-circuit/[0.03] dark:hover:bg-neutral-800/40"
                   >
                     <td className="px-6 py-4">
                       {sub.status === "Success" ? (
-                        <div className="flex items-center gap-2 text-emerald-600 font-semibold text-xs dark:text-emerald-400">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <div className="flex items-center gap-2 text-pass font-semibold text-xs">
+                          <CheckCircle2 className="h-4 w-4 text-pass" />
                           Accepted
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-rose-600 font-semibold text-xs dark:text-rose-400">
-                          <XCircle className="h-4 w-4 text-rose-500" />
+                        <div className="flex items-center gap-2 text-fail font-semibold text-xs">
+                          <XCircle className="h-4 w-4 text-fail" />
                           {sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
                         </div>
                       )}
@@ -116,7 +114,7 @@ export default function Submissions() {
                     <td className="px-6 py-4 font-semibold text-neutral-900 dark:text-neutral-100">
                       <Link
                         to={`/problem/${sub.questionId}`}
-                        className="hover:text-orange-500 transition-colors flex items-center gap-1"
+                        className="hover:text-circuit transition-colors flex items-center gap-1"
                       >
                         {questionTitles[sub.questionId] || sub.questionId}
                         <ArrowUpRight className="h-3.5 w-3.5 text-neutral-400" />
@@ -144,9 +142,9 @@ export default function Submissions() {
                         size="sm"
                         variant="outline"
                         onClick={() => setSelectedSub(sub)}
-                        className="h-8 text-xs border-neutral-200 text-neutral-700 hover:bg-orange-50 hover:text-orange-600 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        className="h-8 text-xs border-neutral-200 text-neutral-700 hover:bg-circuit/5 hover:text-circuit dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-800"
                       >
-                        <FileCode2 className="h-3.5 w-3.5 mr-1 text-orange-500" />
+                        <FileCode2 className="h-3.5 w-3.5 mr-1 text-circuit" />
                         Code
                       </Button>
                     </td>
@@ -162,8 +160,8 @@ export default function Submissions() {
             <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-[#0c0d12] p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Code className="h-5 w-5 text-orange-500" />
-                  <h3 className="font-bold text-white text-base">
+                  <Code className="h-5 w-5 text-circuit" />
+                  <h3 className="font-display font-semibold text-white text-base">
                     Submitted Code: {questionTitles[selectedSub.questionId] || selectedSub.questionId}
                   </h3>
                 </div>
@@ -181,7 +179,7 @@ export default function Submissions() {
                 </span>
                 <span>
                   Status:{" "}
-                  <strong className={selectedSub.status === "Success" ? "text-emerald-400" : "text-rose-400"}>
+                  <strong className={selectedSub.status === "Success" ? "text-pass" : "text-fail"}>
                     {selectedSub.status}
                   </strong>
                 </span>

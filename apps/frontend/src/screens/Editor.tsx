@@ -16,7 +16,8 @@ import {
   submitCodeAPI,
 } from "@/lib/api";
 
-
+// Must match apps/worker/index.ts's EXTENSION_BY_LANGUAGE — anything else
+// submitted comes back as "Failure" immediately.
 const LANGUAGES = [
   { value: "python", label: "Python 3" },
   { value: "cpp", label: "C++ 17" },
@@ -137,7 +138,7 @@ export default function Editor() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#090a0f] text-neutral-400">
         <div className="flex items-center gap-3">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-circuit border-t-transparent" />
           Loading workspace...
         </div>
       </div>
@@ -147,12 +148,12 @@ export default function Editor() {
   if (loadError || !question) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#090a0f] text-neutral-400 gap-3">
-        <AlertTriangle className="h-6 w-6 text-rose-500" />
+        <AlertTriangle className="h-6 w-6 text-fail" />
         <p className="text-lg font-semibold text-white">
           {loadError ? "Couldn't load this problem" : "Problem not found"}
         </p>
         {loadError && <p className="text-sm text-neutral-500 max-w-sm text-center">{loadError}</p>}
-        <Link to="/" className="mt-2 text-sm text-orange-500 underline">
+        <Link to="/" className="mt-2 text-sm text-circuit underline">
           Return to Dashboard
         </Link>
       </div>
@@ -172,7 +173,7 @@ export default function Editor() {
             Problems
           </Link>
           <div className="h-4 w-px bg-neutral-800" />
-          <h1 className="text-sm font-bold text-white truncate max-w-xs sm:max-w-md">{question.title}</h1>
+          <h1 className="font-display text-sm font-semibold text-white truncate max-w-xs sm:max-w-md">{question.title}</h1>
         </div>
 
         <div className="flex items-center gap-3">
@@ -180,7 +181,7 @@ export default function Editor() {
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             disabled={isSubmitting}
-            className="h-8 rounded-lg border border-neutral-800 bg-[#181a24] px-3 text-xs font-semibold text-neutral-200 focus:border-orange-500 focus:outline-none cursor-pointer disabled:opacity-50"
+            className="h-8 rounded-lg border border-neutral-800 bg-[#181a24] px-3 text-xs font-semibold text-neutral-200 focus:border-circuit focus:outline-none cursor-pointer disabled:opacity-50"
           >
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -193,7 +194,7 @@ export default function Editor() {
             size="sm"
             onClick={handleSubmitCode}
             disabled={isSubmitting}
-            className="h-8 rounded-lg bg-emerald-600 text-xs font-semibold text-white shadow-sm shadow-emerald-600/30 hover:bg-emerald-500 active:scale-[0.98]"
+            className="h-8 rounded-lg bg-pass text-xs font-semibold text-white shadow-sm shadow-pass/30 hover:bg-pass/90 active:scale-[0.98]"
           >
             <Send className="mr-1.5 h-3.5 w-3.5" />
             {isSubmitting ? "Submitting..." : "Submit"}
@@ -202,7 +203,7 @@ export default function Editor() {
       </header>
 
       {submitError && (
-        <div className="flex items-center gap-2 bg-rose-950/40 border-b border-rose-900 px-4 py-2 text-xs text-rose-400">
+        <div className="flex items-center gap-2 bg-fail/10 border-b border-fail/20 px-4 py-2 text-xs text-fail">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {submitError}
         </div>
@@ -221,7 +222,7 @@ export default function Editor() {
                   : "text-neutral-400 hover:text-neutral-200"
               }`}
             >
-              <FileText className="h-3.5 w-3.5 text-orange-500" />
+              <FileText className="h-3.5 w-3.5 text-circuit" />
               Description
             </button>
 
@@ -233,7 +234,7 @@ export default function Editor() {
                   : "text-neutral-400 hover:text-neutral-200"
               }`}
             >
-              <History className="h-3.5 w-3.5 text-emerald-500" />
+              <History className="h-3.5 w-3.5 text-pass" />
               Submissions
             </button>
           </div>
@@ -241,7 +242,7 @@ export default function Editor() {
           <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-neutral-300 leading-relaxed">
             {activeLeftTab === "description" ? (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-white tracking-tight">{question.title}</h2>
+                <h2 className="font-display text-2xl font-semibold text-white tracking-tight">{question.title}</h2>
 
                 <div className="whitespace-pre-line text-sm leading-relaxed text-neutral-300">
                   {question.description}
@@ -259,7 +260,7 @@ export default function Editor() {
                           key={tc.id || index}
                           className="rounded-xl border border-neutral-800 bg-[#12141d] p-4 space-y-2 font-mono text-xs"
                         >
-                          <p className="text-xs font-sans font-semibold text-orange-400">
+                          <p className="text-xs font-sans font-semibold text-circuit">
                             Example {index + 1}:
                           </p>
                           <div>
@@ -268,7 +269,7 @@ export default function Editor() {
                           </div>
                           <div>
                             <span className="text-neutral-500 font-sans">Output:</span>{" "}
-                            <span className="text-emerald-400">{tc.expectedOutput}</span>
+                            <span className="text-pass">{tc.expectedOutput}</span>
                           </div>
                         </div>
                       ))}
@@ -280,7 +281,7 @@ export default function Editor() {
                 <h3 className="text-sm font-bold text-white">Your Past Submissions</h3>
                 {submissionsLoading ? (
                   <div className="flex items-center gap-2 text-neutral-500">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-circuit border-t-transparent" />
                     Loading...
                   </div>
                 ) : pastSubmissions.length === 0 ? (
@@ -295,7 +296,7 @@ export default function Editor() {
                         <div className="space-y-1">
                           <span
                             className={`text-xs font-bold ${
-                              sub.status === "Success" ? "text-emerald-400" : "text-rose-400"
+                              sub.status === "Success" ? "text-pass" : "text-fail"
                             }`}
                           >
                             {sub.status === "Success" ? "Accepted" : sub.status}
