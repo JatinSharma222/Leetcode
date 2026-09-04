@@ -15,5 +15,5 @@ app.use((_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Frontend Express server running at http://localhost:${PORT}`);
+  console.log(`Frontend Express server running at http://localhost:${PORT}`);
 });

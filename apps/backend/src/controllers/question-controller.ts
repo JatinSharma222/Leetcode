@@ -32,6 +32,7 @@ export const getQuestionById = async (req: Request, res: Response) => {
       where: { id },
       include: {
         testCases: {
+          where: { isSample: true },
           orderBy: { order: "asc" },
         },
       },
