@@ -3,7 +3,12 @@ import fs from "fs";
 import { spawn } from "child_process";
 import { prisma } from "@repo/db";
 
-const client = createClient();
+const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+const client = createClient({ url: redisUrl });
+
+client.on("error", (err) => {
+  console.error("Worker Redis Client Error:", err);
+});
 
 const TLE_MS = 5000;
 
