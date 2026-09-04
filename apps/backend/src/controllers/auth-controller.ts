@@ -2,10 +2,43 @@ import type { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "@repo/db";
+import { z } from "zod";
+
+export const signupSchema = z.object({
+  username: z
+    .string({ required_error: "Username is required" })
+    .trim()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+  password: z
+    .string({ required_error: "Password is required" })
+    .min(6, "Password must be at least 6 characters")
+    .max(100, "Password cannot exceed 100 characters"),
+});
+
+export const signinSchema = z.object({
+  username: z
+    .string({ required_error: "Username is required" })
+    .trim()
+    .min(1, "Username is required"),
+  password: z
+    .string({ required_error: "Password is required" })
+    .min(1, "Password is required"),
+});
 
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const parseResult = signupSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstError = parseResult.error.issues[0]?.message || "Invalid input";
+      return res.status(400).json({
+        message: firstError,
+        errors: parseResult.error.issues,
+      });
+    }
+
+    const { username, password } = parseResult.data;
 
     const existingUser = await prisma.user.findUnique({
       where: { username },
@@ -39,7 +72,16 @@ export const signup = async (req: Request, res: Response) => {
 
 export const signin = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const parseResult = signinSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstError = parseResult.error.issues[0]?.message || "Invalid input";
+      return res.status(400).json({
+        message: firstError,
+        errors: parseResult.error.issues,
+      });
+    }
+
+    const { username, password } = parseResult.data;
 
     const user = await prisma.user.findUnique({
       where: { username },
@@ -58,12 +100,20 @@ export const signin = async (req: Request, res: Response) => {
       });
     }
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("JWT_SECRET is not configured in environment!");
+      return res.status(500).json({
+        message: "Server configuration error",
+      });
+    }
+
     const token = jwt.sign(
       {
         userId: user.id,
         username: user.username,
       },
-      process.env.JWT_SECRET!,
+      jwtSecret,
       {
         expiresIn: "7d",
       },
