@@ -21,6 +21,37 @@ async function getRedisClient() {
   return client;
 }
 
+export const getSubmissionById = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ message: "Submission ID is required" });
+    }
+
+    const submission = await prisma.submission.findUnique({
+      where: { id },
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    if (submission.userId !== userId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    res.status(200).json({ submission });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const getSubmissions = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;

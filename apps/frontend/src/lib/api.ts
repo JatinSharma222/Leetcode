@@ -129,30 +129,37 @@ export async function submitCodeAPI(payload: {
   questionId: string;
   code: string;
   language: string;
-}): Promise<void> {
-  await apiFetch("/submission/submit", { method: "POST", body: JSON.stringify(payload) }, true);
+}): Promise<string> {
+  const data = await apiFetch("/submission/submit", { method: "POST", body: JSON.stringify(payload) }, true);
+  if (!data?.submissionId) throw new ApiError("Server didn't return a submission ID.", 500);
+  return data.submissionId;
+}
+
+export async function fetchSubmissionById(id: string): Promise<Submission | null> {
+  try {
+    const data = await apiFetch(`/submission/${id}`, {}, true);
+    return data?.submission ?? null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 /**
- * `POST /submission/submit` doesn't return the new submission's id (backend
- * limitation), so there's no direct way to poll "give me submission X".
- * Instead we poll the user's submission list — it's ordered newest-first —
- * and wait for the top row to belong to this question and leave "Processing".
- * This is a workaround, not a great one: if the user submits again quickly
- * (e.g. from two tabs) it can race. The real fix is having /submit return
- * `{ submissionId }` and adding a `GET /submission/:id` endpoint.
+ * Poll a specific submission by its ID until it leaves "Processing" status.
+ * This eliminates the previous race condition where we scanned all submissions
+ * and could accidentally pick up a different submission's result.
  */
 export async function pollForSubmissionResult(
-  questionId: string,
+  submissionId: string,
   { intervalMs = 1500, timeoutMs = 30000 }: { intervalMs?: number; timeoutMs?: number } = {},
 ): Promise<Submission | null> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const submissions = await fetchUserSubmissions();
-    const top = submissions[0];
-    if (top && top.questionId === questionId && top.status !== "Processing") {
-      return top;
+    const submission = await fetchSubmissionById(submissionId);
+    if (submission && submission.status !== "Processing") {
+      return submission;
     }
     await new Promise((r) => setTimeout(r, intervalMs));
   }

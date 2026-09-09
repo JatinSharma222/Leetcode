@@ -92,6 +92,16 @@ export default function Editor() {
   }, [activeLeftTab, id, navigate]);
 
   const handleLanguageChange = (newLang: string) => {
+    const currentTemplate = getCodeTemplate(language);
+    const hasUserEdits = code !== currentTemplate;
+
+    if (hasUserEdits) {
+      const confirmed = window.confirm(
+        "You have unsaved changes in your code. Switching languages will replace your current code with a new template.\n\nDo you want to continue?"
+      );
+      if (!confirmed) return;
+    }
+
     setLanguage(newLang);
     setCode(getCodeTemplate(newLang));
   };
@@ -108,10 +118,8 @@ export default function Editor() {
     setPollTimedOut(false);
 
     try {
-      await submitCodeAPI({ questionId: question.id, code, language });
-      // The submit endpoint doesn't hand back a submission id, so we poll
-      // the submissions list for the newest row against this question.
-      const result = await pollForSubmissionResult(question.id);
+      const submissionId = await submitCodeAPI({ questionId: question.id, code, language });
+      const result = await pollForSubmissionResult(submissionId);
       if (result) {
         setSubmissionResult({
           status: result.status,
