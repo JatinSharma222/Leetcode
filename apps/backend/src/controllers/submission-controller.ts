@@ -1,25 +1,6 @@
 import type { Request, Response } from "express";
 import { prisma } from "@repo/db";
-import { createClient } from "redis";
-
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-const client = createClient({ url: redisUrl });
-
-client.on("error", (err) => {
-  console.error("Redis Client Error:", err);
-});
-
-// Eagerly connect, catching error so it doesn't crash the server at startup
-client.connect().catch((err) => {
-  console.error("Failed to connect to Redis initially:", err);
-});
-
-async function getRedisClient() {
-  if (!client.isOpen) {
-    await client.connect();
-  }
-  return client;
-}
+import { getRedisClient } from "../lib/redis";
 
 export const getSubmissionById = async (req: Request, res: Response) => {
   try {

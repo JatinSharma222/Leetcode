@@ -28,6 +28,10 @@ export const getQuestionById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ message: "Invalid question ID" });
+    }
+
     const question = await prisma.question.findUnique({
       where: { id },
       include: {
