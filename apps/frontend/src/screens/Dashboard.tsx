@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { Search, ArrowUpRight, AlertTriangle, Terminal } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
@@ -41,24 +41,33 @@ export default function Dashboard() {
 
   // Most recent submission per question — used both for the solved check
   // and to drive each row's TestStrip with a real pass/fail readout.
-  const latestByQuestion = new Map<string, Submission>();
-  for (const s of submissions) {
-    const existing = latestByQuestion.get(s.questionId);
-    if (!existing || new Date(s.createdAt) > new Date(existing.createdAt)) {
-      latestByQuestion.set(s.questionId, s);
+  const latestByQuestion = useMemo(() => {
+    const map = new Map<string, Submission>();
+    for (const s of submissions) {
+      const existing = map.get(s.questionId);
+      if (!existing || new Date(s.createdAt) > new Date(existing.createdAt)) {
+        map.set(s.questionId, s);
+      }
     }
-  }
-  const solvedQuestionIds = new Set(
-    submissions.filter((s) => s.status === "Success").map((s) => s.questionId),
+    return map;
+  }, [submissions]);
+
+  const solvedQuestionIds = useMemo(
+    () => new Set(submissions.filter((s) => s.status === "Success").map((s) => s.questionId)),
+    [submissions],
   );
 
-  const filteredQuestions = questions.filter((q) =>
-    q.title.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredQuestions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return questions;
+    return questions.filter((q) => q.title.toLowerCase().includes(query));
+  }, [questions, searchQuery]);
 
-  const successfulSubmissions = submissions.filter((s) => s.status === "Success").length;
-  const acceptanceRate =
-    submissions.length > 0 ? Math.round((successfulSubmissions / submissions.length) * 1000) / 10 : 0;
+  const acceptanceRate = useMemo(() => {
+    if (submissions.length === 0) return 0;
+    const successfulSubmissions = submissions.filter((s) => s.status === "Success").length;
+    return Math.round((successfulSubmissions / submissions.length) * 1000) / 10;
+  }, [submissions]);
 
   return (
     <div className="min-h-screen bg-background">
