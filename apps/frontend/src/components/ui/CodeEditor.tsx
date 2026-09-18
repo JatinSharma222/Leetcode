@@ -1,4 +1,5 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef } from "react";
+import MonacoEditor, { type OnMount } from "@monaco-editor/react";
 import { Copy, RotateCcw, Check } from "lucide-react";
 import { Button } from "./button";
 
@@ -11,6 +12,12 @@ interface CodeEditorProps {
   disabled?: boolean;
 }
 
+const LANGUAGE_MAP: Record<string, string> = {
+  python: "python",
+  cpp: "cpp",
+  javascript: "javascript",
+};
+
 export default function CodeEditor({
   code,
   onChange,
@@ -19,54 +26,82 @@ export default function CodeEditor({
   onReset,
   disabled = false,
 }: CodeEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const gutterRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = React.useState(false);
+  const editorRef = useRef<any>(null);
 
-  // Sync scroll position between textarea and line number gutter
-  const handleScroll = () => {
-    if (textareaRef.current && gutterRef.current) {
-      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
-    }
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+
+    // Register Cmd/Ctrl + Enter shortcut for submit
+    editor.addAction({
+      id: "submit-code",
+      label: "Submit Code",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => {
+        onSubmit?.();
+      },
+    });
+
+    // Define a custom dark theme inspired by One Dark Pro
+    monaco.editor.defineTheme("leetcode-dark", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "comment", foreground: "6A737D", fontStyle: "italic" },
+        { token: "keyword", foreground: "C678DD" },
+        { token: "string", foreground: "98C379" },
+        { token: "number", foreground: "D19A66" },
+        { token: "type", foreground: "E5C07B" },
+        { token: "function", foreground: "61AFEF" },
+        { token: "variable", foreground: "E06C75" },
+        { token: "operator", foreground: "56B6C2" },
+        { token: "delimiter", foreground: "ABB2BF" },
+        { token: "identifier", foreground: "ABB2BF" },
+      ],
+      colors: {
+        "editor.background": "#0f1117",
+        "editor.foreground": "#ABB2BF",
+        "editor.lineHighlightBackground": "#1a1d2e",
+        "editor.selectionBackground": "#3E4451",
+        "editorCursor.foreground": "#4653FF",
+        "editorLineNumber.foreground": "#495162",
+        "editorLineNumber.activeForeground": "#ABB2BF",
+        "editor.selectionHighlightBackground": "#3E445180",
+        "editorBracketMatch.background": "#3E445140",
+        "editorBracketMatch.border": "#4653FF60",
+        "editorIndentGuide.background": "#3B4048",
+        "editorIndentGuide.activeBackground": "#5C6370",
+        "editorGutter.background": "#0f1117",
+        "scrollbarSlider.background": "#4E566680",
+        "scrollbarSlider.hoverBackground": "#5A637580",
+      },
+    });
+
+    monaco.editor.setTheme("leetcode-dark");
+
+    // Focus the editor on mount
+    editor.focus();
   };
 
-  // Handle keyboard shortcuts (Tab, Cmd/Ctrl + Enter)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (disabled) return;
-
-    // Tab key -> 4 spaces
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-
-      const newCode = code.substring(0, start) + "    " + code.substring(end);
-      onChange(newCode);
-
-      // Set cursor position after inserted tab
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 4;
-      }, 0);
-    }
-
-    // Cmd + Enter or Ctrl + Enter -> Submit Code
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      onSubmit?.();
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for non-HTTPS environments
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const lineCount = Math.max(1, code.split("\n").length);
-  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
 
   return (
     <div className="flex flex-col h-full w-full rounded-xl border border-neutral-800 bg-[#0f1117] overflow-hidden shadow-inner font-mono text-sm">
@@ -106,39 +141,62 @@ export default function CodeEditor({
         </div>
       </div>
 
-      {/* Editor Main Canvas with Line Numbers */}
-      <div className="relative flex-1 flex overflow-hidden bg-[#0c0d12]">
-        {/* Line Numbers Gutter */}
-        <div
-          ref={gutterRef}
-          className="w-12 select-none overflow-hidden bg-[#12141c] py-3 pr-3 text-right text-xs text-neutral-600 border-r border-neutral-800/60 leading-6 font-mono"
-        >
-          {lineNumbers.map((num) => (
-            <div key={num}>{num}</div>
-          ))}
-        </div>
-
-        {/* Text Area Code Editor */}
-        <textarea
-          ref={textareaRef}
+      {/* Monaco Editor */}
+      <div className="flex-1 overflow-hidden">
+        <MonacoEditor
+          height="100%"
+          language={LANGUAGE_MAP[language] || "plaintext"}
           value={code}
-          onChange={(e) => onChange(e.target.value)}
-          onScroll={handleScroll}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          placeholder="// Write your solution code here..."
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-          autoCorrect="off"
-          className="flex-1 resize-none bg-transparent py-3 px-4 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 outline-none leading-6 caret-circuit selection:bg-circuit/30 overflow-auto"
+          onChange={(value) => onChange(value ?? "")}
+          onMount={handleEditorMount}
+          theme="leetcode-dark"
+          loading={
+            <div className="flex h-full items-center justify-center text-neutral-500 text-xs">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-circuit border-t-transparent mr-2" />
+              Loading editor...
+            </div>
+          }
+          options={{
+            fontSize: 14,
+            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+            fontLigatures: true,
+            lineNumbers: "on",
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 4,
+            insertSpaces: true,
+            wordWrap: "off",
+            renderLineHighlight: "line",
+            cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
+            smoothScrolling: true,
+            bracketPairColorization: { enabled: true },
+            autoClosingBrackets: "always",
+            autoClosingQuotes: "always",
+            autoIndent: "full",
+            formatOnPaste: true,
+            suggestOnTriggerCharacters: true,
+            quickSuggestions: true,
+            padding: { top: 12, bottom: 12 },
+            readOnly: disabled,
+            domReadOnly: disabled,
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8,
+              verticalSliderSize: 8,
+            },
+            overviewRulerBorder: false,
+            hideCursorInOverviewRuler: true,
+            renderWhitespace: "selection",
+          }}
         />
       </div>
 
       {/* Footer shortcut bar */}
       <div className="flex h-7 items-center justify-between border-t border-neutral-800/80 bg-[#12141c] px-4 text-[11px] text-neutral-500 select-none">
         <span>Press <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">Tab</kbd> to indent</span>
-        <span>Submit shortcut: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + Enter</kbd></span>
+        <span>Submit: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + Enter</kbd></span>
       </div>
     </div>
   );
