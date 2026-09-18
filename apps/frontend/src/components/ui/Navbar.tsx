@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Terminal, LogOut, CheckCircle2, User, Layers } from "lucide-react";
+import { Terminal, LogOut, CheckCircle2, User, Layers, Moon, Sun } from "lucide-react";
 import { Button } from "./button";
 import { clearAuthToken } from "@/lib/api";
 
@@ -8,6 +8,35 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const username = localStorage.getItem("username") || "Developer";
+
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return document.documentElement.classList.contains("dark");
+  });
+
+  useEffect(() => {
+    // On mount, check saved preference or system preference
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      document.documentElement.classList.add("dark");
+      setIsDark(true);
+    } else {
+      document.documentElement.classList.remove("dark");
+      setIsDark(false);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newDark = !isDark;
+    setIsDark(newDark);
+    if (newDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
 
   const handleLogout = () => {
     clearAuthToken();
@@ -61,8 +90,18 @@ export default function Navbar() {
           </nav>
         </div>
 
-        {/* Right: User profile */}
+        {/* Right: Theme toggle + User profile */}
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleTheme}
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+
           <div className="flex items-center gap-2 border-l border-neutral-200 pl-3 dark:border-neutral-800">
             <div className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
               <User className="h-4 w-4" />

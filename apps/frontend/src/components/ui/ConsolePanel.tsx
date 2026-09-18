@@ -48,9 +48,9 @@ export default function ConsolePanel({
   const isAccepted = submissionResult?.status === "Success";
 
   return (
-    <div className="flex flex-col border-t border-neutral-800 bg-[#0e1017] text-neutral-200 font-sans">
+    <div className="flex flex-col border-t border-border bg-card text-foreground font-sans">
       {/* Header bar */}
-      <div className="flex h-10 items-center justify-between px-4 border-b border-neutral-800 bg-[#141722]">
+      <div className="flex h-10 items-center justify-between px-4 border-b border-border bg-secondary">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -115,7 +115,7 @@ export default function ConsolePanel({
                     <p className="text-[11px] font-sans font-medium text-neutral-400 uppercase tracking-wider">
                       Input (stdin)
                     </p>
-                    <pre className="p-3 rounded-lg bg-[#08090d] border border-neutral-800 text-neutral-200 overflow-x-auto">
+                    <pre className="p-3 rounded-lg bg-background border border-border text-foreground overflow-x-auto">
                       {currentTestCase.input}
                     </pre>
                   </div>
@@ -124,7 +124,7 @@ export default function ConsolePanel({
                     <p className="text-[11px] font-sans font-medium text-neutral-400 uppercase tracking-wider">
                       Expected Output
                     </p>
-                    <pre className="p-3 rounded-lg bg-[#08090d] border border-neutral-800 text-pass overflow-x-auto">
+                    <pre className="p-3 rounded-lg bg-background border border-border text-pass overflow-x-auto">
                       {currentTestCase.expectedOutput}
                     </pre>
                   </div>
@@ -178,7 +178,7 @@ export default function ConsolePanel({
                       <p className="text-[11px] font-sans font-medium text-neutral-400 uppercase tracking-wider">
                         Last Program Output
                       </p>
-                      <pre className="p-3 rounded-lg bg-[#08090d] border border-neutral-800 text-neutral-200 overflow-x-auto">
+                      <pre className="p-3 rounded-lg bg-background border border-border text-foreground overflow-x-auto">
                         {submissionResult.output}
                       </pre>
                     </div>

@@ -144,7 +144,7 @@ export default function Editor() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#090a0f] text-neutral-400">
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         <div className="flex items-center gap-3">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-circuit border-t-transparent" />
           Loading workspace...
@@ -155,7 +155,7 @@ export default function Editor() {
 
   if (loadError || !question) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#090a0f] text-neutral-400 gap-3">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background text-muted-foreground gap-3">
         <AlertTriangle className="h-6 w-6 text-fail" />
         <p className="text-lg font-semibold text-white">
           {loadError ? "Couldn't load this problem" : "Problem not found"}
@@ -169,9 +169,9 @@ export default function Editor() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#090a0f] text-neutral-200 font-sans overflow-hidden">
+    <div className="flex h-screen flex-col bg-background text-foreground font-sans overflow-hidden dark">
       {/* Top Header Bar */}
-      <header className="flex h-13 shrink-0 items-center justify-between border-b border-neutral-800 bg-[#11131c] px-4 select-none">
+      <header className="flex h-13 shrink-0 items-center justify-between border-b border-border bg-card px-4 select-none">
         <div className="flex items-center gap-3">
           <Link
             to="/"
@@ -189,7 +189,7 @@ export default function Editor() {
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             disabled={isSubmitting}
-            className="h-8 rounded-lg border border-neutral-800 bg-[#181a24] px-3 text-xs font-semibold text-neutral-200 focus:border-circuit focus:outline-none cursor-pointer disabled:opacity-50"
+            className="h-8 rounded-lg border border-border bg-secondary px-3 text-xs font-semibold text-foreground focus:border-circuit focus:outline-none cursor-pointer disabled:opacity-50"
           >
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -220,8 +220,8 @@ export default function Editor() {
       {/* Main Dual-Pane Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT PANE: Problem Specs & Submissions */}
-        <div className="flex w-1/2 flex-col border-r border-neutral-800 bg-[#0e1017] overflow-hidden">
-          <div className="flex h-10 shrink-0 items-center gap-1 border-b border-neutral-800 bg-[#141622] px-4 select-none">
+        <div className="flex w-1/2 flex-col border-r border-border bg-card overflow-hidden">
+          <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-secondary px-4 select-none">
             <button
               onClick={() => setActiveLeftTab("description")}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
@@ -266,7 +266,7 @@ export default function Editor() {
                       .map((tc, index) => (
                         <div
                           key={tc.id || index}
-                          className="rounded-xl border border-neutral-800 bg-[#12141d] p-4 space-y-2 font-mono text-xs"
+                          className="rounded-xl border border-border bg-secondary p-4 space-y-2 font-mono text-xs"
                         >
                           <p className="text-xs font-sans font-semibold text-circuit">
                             Example {index + 1}:
@@ -299,7 +299,7 @@ export default function Editor() {
                     {pastSubmissions.map((sub) => (
                       <div
                         key={sub.id}
-                        className="flex items-center justify-between rounded-xl border border-neutral-800 bg-[#12141d] p-3.5"
+                        className="flex items-center justify-between rounded-xl border border-border bg-secondary p-3.5"
                       >
                         <div className="space-y-1">
                           <span
@@ -326,7 +326,7 @@ export default function Editor() {
         </div>
 
         {/* RIGHT PANE: Code Editor & Console */}
-        <div className="flex w-1/2 flex-col bg-[#0c0d12] overflow-hidden">
+        <div className="flex w-1/2 flex-col bg-background overflow-hidden">
           <div className="flex-1 p-2 overflow-hidden">
             <CodeEditor
               code={code}
