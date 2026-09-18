@@ -14,6 +14,12 @@ declare global {
   }
 }
 
+// Fail fast at startup if JWT_SECRET is not configured
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET environment variable is required but not set.");
+}
+
 export const auth = (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -32,10 +38,7 @@ export const auth = (req: Request, res: Response, next: NextFunction) => {
       });
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "",
-    ) as unknown as JwtPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as unknown as JwtPayload;
 
     req.user = decoded;
 

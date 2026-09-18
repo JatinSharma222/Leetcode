@@ -13,7 +13,7 @@ export const signupSchema = z.object({
     .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   password: z
     .string({ required_error: "Password is required" })
-    .min(6, "Password must be at least 6 characters")
+    .min(8, "Password must be at least 8 characters")
     .max(100, "Password cannot exceed 100 characters"),
 });
 
@@ -88,15 +88,15 @@ export const signin = async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        message: "Username does not exist",
+      return res.status(401).json({
+        message: "Invalid username or password",
       });
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return res.status(401).json({
-        message: "Invalid credentials",
+        message: "Invalid username or password",
       });
     }
 
