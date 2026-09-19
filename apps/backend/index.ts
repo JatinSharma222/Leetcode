@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { appRouter } from "./src/routes/index";
+import { prisma } from "@repo/db";
 
 const app = express();
 
@@ -33,6 +34,22 @@ app.use(appRouter);
 
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend server listening at http://localhost:${PORT}`);
 });
+
+// Graceful shutdown
+const shutdown = async (signal: string) => {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  server.close(async () => {
+    try {
+      await prisma.$disconnect();
+    } catch {}
+    process.exit(0);
+  });
+  // Force exit after 10s if server.close hangs
+  setTimeout(() => process.exit(1), 10000);
+};
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

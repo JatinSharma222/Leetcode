@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { CheckCircle2, XCircle, Code, ArrowUpRight, FileCode2, AlertTriangle } from "lucide-react";
+import MonacoEditor from "@monaco-editor/react";
 import Navbar from "@/components/ui/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -157,25 +158,25 @@ export default function Submissions() {
 
         {selectedSub && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-            <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-[#0c0d12] p-6 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
                   <Code className="h-5 w-5 text-circuit" />
-                  <h3 className="font-display font-semibold text-white text-base">
+                  <h3 className="font-display font-semibold text-foreground text-base">
                     Submitted Code: {questionTitles[selectedSub.questionId] || selectedSub.questionId}
                   </h3>
                 </div>
                 <button
                   onClick={() => setSelectedSub(null)}
-                  className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                  className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-neutral-400 font-mono">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
                 <span>
-                  Language: <strong className="text-white">{selectedSub.language}</strong>
+                  Language: <strong className="text-foreground">{selectedSub.language}</strong>
                 </span>
                 <span>
                   Status:{" "}
@@ -185,15 +186,33 @@ export default function Submissions() {
                 </span>
               </div>
 
-              <pre className="max-h-96 overflow-auto rounded-xl bg-[#050608] p-4 font-mono text-xs text-neutral-200 border border-neutral-800/80 leading-relaxed">
-                {selectedSub.code}
-              </pre>
+              <div className="h-96 rounded-xl border border-border overflow-hidden">
+                <MonacoEditor
+                  height="100%"
+                  language={selectedSub.language === "cpp" ? "cpp" : selectedSub.language}
+                  value={selectedSub.code}
+                  theme="vs-dark"
+                  options={{
+                    readOnly: true,
+                    domReadOnly: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    lineNumbers: "on",
+                    renderLineHighlight: "none",
+                    padding: { top: 12, bottom: 12 },
+                    scrollbar: { verticalScrollbarSize: 8 },
+                    overviewRulerBorder: false,
+                  }}
+                />
+              </div>
 
               <div className="flex justify-end pt-2">
                 <Button
                   size="sm"
                   onClick={() => setSelectedSub(null)}
-                  className="bg-neutral-800 text-white hover:bg-neutral-700"
+                  className="bg-secondary text-foreground hover:bg-secondary/80"
                 >
                   Close
                 </Button>

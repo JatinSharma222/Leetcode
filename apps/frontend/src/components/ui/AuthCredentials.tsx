@@ -36,7 +36,7 @@ function FormField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="text-sm font-medium text-neutral-700">
+        <Label htmlFor={id} className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
           {label}
         </Label>
         {trailing}
@@ -78,7 +78,7 @@ function PasswordInput({
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={hasError}
         aria-describedby={hasError ? `${id}-error` : undefined}
-        className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 pr-10 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200"
+        className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 pr-10 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
       />
       <button
         type="button"
@@ -177,9 +177,9 @@ export default function AuthCredentials() {
 
   return (
     <div id="auth-credentials" className="flex items-center justify-center">
-      <Card className="w-full max-w-[420px] rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-xl shadow-neutral-200/50">
+      <Card className="w-full max-w-[420px] rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-xl shadow-neutral-200/50 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
         <CardHeader className="px-6 pt-6 pb-0">
-          <CardTitle className="font-display text-xl font-semibold text-neutral-900">
+          <CardTitle className="font-display text-xl font-semibold text-neutral-900 dark:text-white">
             {activeTab === "login" ? "Welcome back" : "Create an account"}
           </CardTitle>
           <CardDescription className="text-sm text-neutral-500">
@@ -199,18 +199,18 @@ export default function AuthCredentials() {
             }}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2 rounded-lg bg-neutral-100 p-1 h-10">
+            <TabsList className="grid w-full grid-cols-2 rounded-lg bg-neutral-100 p-1 h-10 dark:bg-neutral-800">
               <TabsTrigger
                 id="tab-login"
                 value="login"
-                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500"
+                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500 dark:data-[state=active]:bg-neutral-700 dark:data-[state=active]:text-white dark:text-neutral-400"
               >
                 Log in
               </TabsTrigger>
               <TabsTrigger
                 id="tab-signup"
                 value="signup"
-                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500"
+                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500 dark:data-[state=active]:bg-neutral-700 dark:data-[state=active]:text-white dark:text-neutral-400"
               >
                 Sign up
               </TabsTrigger>
@@ -236,7 +236,7 @@ export default function AuthCredentials() {
                     onChange={(e) => setLoginUsername(e.target.value)}
                     aria-invalid={!!fieldErrors.username}
                     aria-describedby={fieldErrors.username ? "login-username-error" : undefined}
-                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200"
+                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
                   />
                 </FormField>
 
@@ -261,7 +261,7 @@ export default function AuthCredentials() {
                 <Button
                   id="btn-login"
                   type="submit"
-                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98]"
+                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                   disabled={loading}
                 >
                   {loading ? "Please wait..." : "Log in"}
@@ -283,7 +283,7 @@ export default function AuthCredentials() {
                     onChange={(e) => setSignupUsername(e.target.value)}
                     aria-invalid={!!fieldErrors.username}
                     aria-describedby={fieldErrors.username ? "signup-username-error" : undefined}
-                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200"
+                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
                   />
                 </FormField>
 
@@ -308,7 +308,7 @@ export default function AuthCredentials() {
                 <Button
                   id="btn-signup"
                   type="submit"
-                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98]"
+                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
                   disabled={loading}
                 >
                   {loading ? "Please wait..." : "Create account"}

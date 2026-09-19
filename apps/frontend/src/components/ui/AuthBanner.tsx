@@ -24,7 +24,7 @@ export default function AuthBanner() {
     <div id="auth-banner" className="flex flex-col gap-8">
       {/* Badge */}
       <div>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-neutral-500">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400">
           <span className="h-1.5 w-1.5 rounded-full bg-pass" />
           status: online
         </span>
@@ -32,7 +32,7 @@ export default function AuthBanner() {
 
       {/* Headline */}
       <div className="space-y-4">
-        <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl">
+        <h1 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-neutral-900 sm:text-5xl dark:text-white">
           Write code.
           <br />
           Run it <span className="text-circuit">for real.</span>
@@ -49,11 +49,11 @@ export default function AuthBanner() {
       <div className="space-y-5">
         {features.map((feature) => (
           <div key={feature.title} className="flex items-start gap-3.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-circuit">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-circuit dark:border-neutral-700 dark:bg-neutral-800">
               <feature.icon className="h-4 w-4" strokeWidth={1.75} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-neutral-800">
+              <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
                 {feature.title}
               </p>
               <p className="mt-0.5 text-sm leading-relaxed text-neutral-500">
