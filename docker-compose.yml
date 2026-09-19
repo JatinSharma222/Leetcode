@@ -1,0 +1,73 @@
+services:
+  # Redis queue for problem submissions
+  redis:
+    image: redis:7-alpine
+    container_name: leetcode-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - leetcode-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Express backend API server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: leetcode-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+      REDIS_URL: redis://leetcode-redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Worker for code execution and testing
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    container_name: leetcode-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://leetcode-redis:6379
+    volumes:
+      # Mount Docker socket so worker can spawn sandboxed code execution containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Frontend web UI
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: leetcode-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      BUN_PUBLIC_API_URL: http://localhost:3001
+    depends_on:
+      - backend
+
+volumes:
+  leetcode-redis-data:
+    name: leetcode-redis-data

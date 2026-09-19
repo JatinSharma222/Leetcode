@@ -21,9 +21,9 @@ const DOCKER_PIDS_LIMIT = "64";
 const DOCKER_TMPFS_SIZE = "64m";
 
 const DOCKER_IMAGE_BY_LANGUAGE: Record<string, string> = {
-  cpp: "sandbox-cpp",
-  javascript: "sandbox-javascript",
-  python: "sandbox-python",
+  cpp: "leetcode-sandbox-cpp",
+  javascript: "leetcode-sandbox-javascript",
+  python: "leetcode-sandbox-python",
 };
 
 const EXTENSION_BY_LANGUAGE: Record<string, string> = {
@@ -225,11 +225,17 @@ async function main() {
     process.exit(1);
   }
 
-  // Verify sandbox images exist
-  for (const [lang, image] of Object.entries(DOCKER_IMAGE_BY_LANGUAGE)) {
-    const imageCheck = await runProcess("docker", ["image", "inspect", image], "", 5000);
+  // Verify sandbox images exist (check leetcode-sandbox-* first, fall back to sandbox-*)
+  for (const [lang, preferredImage] of Object.entries(DOCKER_IMAGE_BY_LANGUAGE)) {
+    let imageCheck = await runProcess("docker", ["image", "inspect", preferredImage], "", 5000);
     if (imageCheck.exitCode !== 0) {
-      console.error(`Sandbox image '${image}' not found for language '${lang}'.`);
+      const fallbackImage = preferredImage.replace("leetcode-", "");
+      const fallbackCheck = await runProcess("docker", ["image", "inspect", fallbackImage], "", 5000);
+      if (fallbackCheck.exitCode === 0) {
+        DOCKER_IMAGE_BY_LANGUAGE[lang] = fallbackImage;
+        continue;
+      }
+      console.error(`Sandbox image '${preferredImage}' (or '${fallbackImage}') not found for language '${lang}'.`);
       console.error("Run: cd apps/worker/docker && bash build-images.sh");
       process.exit(1);
     }
