@@ -8,13 +8,10 @@ datasource db {
 }
 
 model User {
-  id           String       @id @default(uuid())
-  username     String       @unique
-  password     String
-  submissions  Submission[]
-
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String       @id @default(uuid())
+  username    String       @unique
+  password    String
+  submissions Submission[]
 }
 
 model Question {
@@ -24,13 +21,10 @@ model Question {
 
   testCases   TestCase[]
   submissions Submission[]
-
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
 }
 
 model TestCase {
-  id         String   @id @default(uuid())
+  id String @id @default(uuid())
 
   questionId String
   question   Question @relation(fields: [questionId], references: [id])
@@ -38,62 +32,51 @@ model TestCase {
   input          String
   expectedOutput String
 
-  isSample   Boolean  @default(false)
+  isSample Boolean @default(false)
 
-  order      Int      @default(0)
+  order Int @default(0)
 
-  results    SubmissionResult[]
+  results SubmissionResult[]
 
-  createdAt  DateTime @default(now())
-
-  @@unique([questionId, order])
-  @@index([questionId])
+  createdAt DateTime @default(now())
 }
 
 model Submission {
-  id         String    @id @default(uuid())
+  id String @id @default(uuid())
 
   questionId String
-  question   Question  @relation(fields: [questionId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
 
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  code       String
-  language   String
-  status     SubmissionStatus @default(Processing)
-  output     String?
+  code     String
+  language String
+  status   SubmissionStatus @default(Processing)
+  output   String?
 
-  passedCount Int      @default(0)
-  totalCount  Int      @default(0)
+  passedCount Int @default(0)
+  totalCount  Int @default(0)
 
-  results     SubmissionResult[]
+  results SubmissionResult[]
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([questionId])
+  createdAt DateTime @default(now())
 }
 
 model SubmissionResult {
-  id           String     @id @default(uuid())
+  id String @id @default(uuid())
 
   submissionId String
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
-  testCaseId   String
-  testCase     TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  testCaseId String
+  testCase   TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
 
   passed       Boolean
   actualOutput String?
-  timedOut     Boolean    @default(false)
+  timedOut     Boolean @default(false)
 
-  createdAt    DateTime   @default(now())
-
-  @@unique([submissionId, testCaseId])
-  @@index([submissionId])
-  @@index([testCaseId])
+  createdAt DateTime @default(now())
 }
 
 enum SubmissionStatus {
