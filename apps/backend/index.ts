@@ -4,7 +4,8 @@ import cookieParser from "cookie-parser";
 import { appRouter } from "./src/routes/index";
 import { prisma } from "@repo/db";
 
-const app = express();
+export const app = express();
+app.set("trust proxy", true);
 
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
@@ -37,9 +38,12 @@ app.use(appRouter);
 
 const PORT = process.env.PORT || 3001;
 
-const server = app.listen(PORT, () => {
-  console.log(`Backend server listening at http://localhost:${PORT}`);
-});
+export let server: any = null;
+if (process.env.NODE_ENV !== "test") {
+  server = app.listen(PORT, () => {
+    console.log(`Backend server listening at http://localhost:${PORT}`);
+  });
+}
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {
