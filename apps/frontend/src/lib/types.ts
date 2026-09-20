@@ -32,3 +32,21 @@ export interface Submission {
   totalCount: number;
   createdAt: string;
 }
+
+export interface RunResultCase {
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  error: string;
+  passed: boolean;
+  timedOut: boolean;
+  durationMs: number;
+}
+
+export interface RunResultResponse {
+  runId: string;
+  status: "Accepted" | "WrongAnswer" | "Failure" | "TLE";
+  durationMs: number;
+  error?: string;
+  cases: RunResultCase[];
+}

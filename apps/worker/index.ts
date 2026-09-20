@@ -37,6 +37,7 @@ interface RunResult {
   output: string;
   error: string;
   timedOut: boolean;
+  durationMs: number;
 }
 
 function runProcess(
@@ -50,6 +51,7 @@ function runProcess(
     let error = "";
     let timedOut = false;
     let proc: ReturnType<typeof spawn>;
+    const startTime = Date.now();
 
     try {
       proc = spawn(cmd, args);
@@ -59,6 +61,7 @@ function runProcess(
         output: "",
         error: err?.message || String(err),
         timedOut: false,
+        durationMs: 0,
       });
     }
 
@@ -91,8 +94,10 @@ function runProcess(
       });
 
       try {
-        if (input) {
-          proc.stdin.write(input);
+        if (input !== undefined && input !== null) {
+          // Ensure trailing newline so stdin line readers do not hang
+          const formattedInput = input.endsWith("\n") ? input : input + "\n";
+          proc.stdin.write(formattedInput);
         }
         proc.stdin.end();
       } catch (_err) {
@@ -102,7 +107,8 @@ function runProcess(
 
     proc.on("close", (exitCode) => {
       clearTimeout(timer);
-      resolve({ exitCode, output, error, timedOut });
+      const durationMs = Date.now() - startTime;
+      resolve({ exitCode, output, error, timedOut, durationMs });
     });
   });
 }
@@ -134,6 +140,7 @@ async function runInDocker(
       output: "",
       error: `Unsupported language: ${language}`,
       timedOut: false,
+      durationMs: 0,
     };
   }
 
@@ -159,6 +166,7 @@ async function runInDocker(
         output: "",
         error: `Unsupported language: ${language}`,
         timedOut: false,
+        durationMs: 0,
       };
     }
 
@@ -166,6 +174,7 @@ async function runInDocker(
 
     const dockerArgs = [
       "run",
+      "-i",
       "--rm",
       "--name", containerName,
       // --- Security Controls ---
@@ -205,7 +214,10 @@ async function runInDocker(
 }
 
 function normalize(s: string): string {
+  if (!s) return "";
   return s
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
     .split("\n")
     .map((line) => line.trimEnd())
     .join("\n")
@@ -267,8 +279,11 @@ async function main() {
         await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
-      // BRPOP blocks until data is available — no CPU-wasting poll loop
-      response = await client.brPop("problems", 5);
+      // BRPOP blocks on both ephemeral run_requests and persistent problems
+      response = (await client.brPop(["run_requests", "problems"], 5)) as {
+        key: string;
+        element: string;
+      } | null;
     } catch (redisErr) {
       console.error("Error popping problem from Redis:", redisErr);
       await new Promise((r) => setTimeout(r, 1000));
@@ -287,141 +302,316 @@ async function main() {
       continue;
     }
 
-    const { code, language, submissionId, questionId, userId } = parsedResponse;
-    console.log("processing question for user " + userId);
+    if (response.key === "run_requests") {
+      await handleRunRequest(parsedResponse);
+    } else if (response.key === "problems") {
+      await handleSubmission(parsedResponse);
+    }
+  }
+}
 
-    try {
-      const extension = EXTENSION_BY_LANGUAGE[language];
+async function handleRunRequest(data: {
+  runId: string;
+  code: string;
+  language: string;
+  questionId: string;
+  userId: string;
+  customTestCases?: string[];
+}) {
+  const { runId, code, language, questionId, userId, customTestCases } = data;
+  console.log(`[Worker] Running test check for user ${userId}, runId: ${runId}`);
 
-      if (!extension) {
-        console.log("Unsupported language:", language);
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: {
-            status: "Failure",
-            output: `Unsupported language: ${language}`,
-          },
-        });
-        continue;
-      }
+  try {
+    const extension = EXTENSION_BY_LANGUAGE[language];
+    if (!extension) {
+      await client.lPush(
+        `run_results:${runId}`,
+        JSON.stringify({
+          runId,
+          status: "Failure",
+          durationMs: 0,
+          error: `Unsupported language: ${language}`,
+          cases: [],
+        }),
+      );
+      await client.expire(`run_results:${runId}`, 60);
+      return;
+    }
 
-      const testCases = await prisma.testCase.findMany({
+    let casesToRun: { input: string; expectedOutput: string; isSample?: boolean }[] = [];
+
+    if (customTestCases && Array.isArray(customTestCases) && customTestCases.length > 0) {
+      const dbCases = await prisma.testCase.findMany({
         where: { questionId },
+      });
+      casesToRun = customTestCases.map((input) => {
+        const match = dbCases.find((tc) => normalize(tc.input) === normalize(input));
+        return {
+          input,
+          expectedOutput: match ? match.expectedOutput : "",
+          isSample: false,
+        };
+      });
+    } else {
+      let sampleCases = await prisma.testCase.findMany({
+        where: { questionId, isSample: true },
         orderBy: { order: "asc" },
       });
-
-      if (testCases.length === 0) {
-        console.log("No test cases found for question", questionId);
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: {
-            status: "Failure",
-            output: "No test cases configured for this question.",
-          },
-        });
-        continue;
-      }
-
-      let passedCount = 0;
-      let anyTimedOut = false;
-      let anyRuntimeError = false;
-      let lastOutput = "";
-      let firstFailingOutput = "";
-      const resultRows: {
-        testCaseId: string;
-        passed: boolean;
-        actualOutput: string;
-        timedOut: boolean;
-      }[] = [];
-
-      for (const testCase of testCases) {
-        const { output, error, exitCode, timedOut } = await runInDocker(
-          language,
-          code,
-          testCase.input,
-          TLE_MS,
-        );
-
-        const hasRuntimeError =
-          !timedOut &&
-          (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
-
-        if (hasRuntimeError) {
-          anyRuntimeError = true;
-        }
-
-        const passed =
-          !timedOut &&
-          !hasRuntimeError &&
-          normalize(output) === normalize(testCase.expectedOutput);
-
-        if (passed) passedCount++;
-        if (timedOut) anyTimedOut = true;
-
-        const displayOutput = error.trim()
-          ? output.trim()
-            ? `${output.trim()}\n[Stderr]: ${error.trim()}`
-            : error.trim()
-          : output.trim();
-
-        if (!passed && !firstFailingOutput) {
-          firstFailingOutput = displayOutput;
-        }
-        lastOutput = displayOutput;
-
-        resultRows.push({
-          testCaseId: testCase.id,
-          passed,
-          actualOutput: displayOutput,
-          timedOut,
+      if (sampleCases.length === 0) {
+        sampleCases = await prisma.testCase.findMany({
+          where: { questionId },
+          orderBy: { order: "asc" },
+          take: 3,
         });
       }
+      casesToRun = sampleCases.map((tc) => ({
+        input: tc.input,
+        expectedOutput: tc.expectedOutput,
+        isSample: tc.isSample,
+      }));
+    }
 
-      const status = anyTimedOut
-        ? "TLE"
-        : anyRuntimeError && passedCount === 0
-          ? "Failure"
-          : passedCount === testCases.length
-            ? "Success"
-            : "WrongAnswer";
-
-      console.log(`${passedCount}/${testCases.length} passed, status: ${status}`);
-
-      const finalOutput = passedCount === testCases.length ? lastOutput : (firstFailingOutput || lastOutput);
-
-      await prisma.$transaction([
-        prisma.submission.update({
-          where: { id: submissionId },
-          data: {
-            status,
-            output: finalOutput,
-            passedCount,
-            totalCount: testCases.length,
-          },
+    if (casesToRun.length === 0) {
+      await client.lPush(
+        `run_results:${runId}`,
+        JSON.stringify({
+          runId,
+          status: "Failure",
+          durationMs: 0,
+          error: "No test cases configured for this question.",
+          cases: [],
         }),
-        prisma.submissionResult.createMany({
-          data: resultRows.map((r) => ({
-            submissionId,
-            testCaseId: r.testCaseId,
-            passed: r.passed,
-            actualOutput: r.actualOutput,
-            timedOut: r.timedOut,
-          })),
-        }),
-      ]);
-    } catch (submissionErr: any) {
-      console.error(`Error processing submission ${submissionId}:`, submissionErr);
-      try {
-        await prisma.submission.update({
-          where: { id: submissionId },
-          data: {
-            status: "Failure",
-            output: `Worker runtime error: ${submissionErr?.message || "Internal error"}`,
-          },
-        });
-      } catch (dbErr) {
-        console.error("Failed to update submission status after error:", dbErr);
+      );
+      await client.expire(`run_results:${runId}`, 60);
+      return;
+    }
+
+    let allPassed = true;
+    let anyTimedOut = false;
+    let anyRuntimeError = false;
+    let maxDurationMs = 0;
+    const caseResults: {
+      input: string;
+      expectedOutput: string;
+      actualOutput: string;
+      error: string;
+      passed: boolean;
+      timedOut: boolean;
+      durationMs: number;
+    }[] = [];
+
+    for (const testCase of casesToRun) {
+      const { output, error, exitCode, timedOut, durationMs } = await runInDocker(
+        language,
+        code,
+        testCase.input,
+        TLE_MS,
+      );
+
+      if (durationMs > maxDurationMs) {
+        maxDurationMs = durationMs;
       }
+
+      const hasRuntimeError =
+        !timedOut &&
+        (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
+
+      if (hasRuntimeError) {
+        anyRuntimeError = true;
+      }
+      if (timedOut) {
+        anyTimedOut = true;
+      }
+
+      const passed =
+        !timedOut &&
+        !hasRuntimeError &&
+        (testCase.expectedOutput ? normalize(output) === normalize(testCase.expectedOutput) : true);
+
+      if (!passed) {
+        allPassed = false;
+      }
+
+      caseResults.push({
+        input: testCase.input,
+        expectedOutput: testCase.expectedOutput,
+        actualOutput: output.trim(),
+        error: error.trim(),
+        passed,
+        timedOut,
+        durationMs,
+      });
+    }
+
+    const overallStatus = anyTimedOut
+      ? "TLE"
+      : anyRuntimeError
+        ? "Failure"
+        : allPassed
+          ? "Accepted"
+          : "WrongAnswer";
+
+    await client.lPush(
+      `run_results:${runId}`,
+      JSON.stringify({
+        runId,
+        status: overallStatus,
+        durationMs: maxDurationMs,
+        cases: caseResults,
+      }),
+    );
+    await client.expire(`run_results:${runId}`, 60);
+  } catch (err: any) {
+    console.error(`[Worker] Error running code for runId ${runId}:`, err);
+    await client.lPush(
+      `run_results:${runId}`,
+      JSON.stringify({
+        runId,
+        status: "Failure",
+        durationMs: 0,
+        error: `Execution engine error: ${err?.message || "Internal error"}`,
+        cases: [],
+      }),
+    );
+    await client.expire(`run_results:${runId}`, 60);
+  }
+}
+
+async function handleSubmission(parsedResponse: any) {
+  const { code, language, submissionId, questionId, userId } = parsedResponse;
+  console.log("processing question for user " + userId);
+
+  try {
+    const extension = EXTENSION_BY_LANGUAGE[language];
+
+    if (!extension) {
+      console.log("Unsupported language:", language);
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status: "Failure",
+          output: `Unsupported language: ${language}`,
+        },
+      });
+      return;
+    }
+
+    const testCases = await prisma.testCase.findMany({
+      where: { questionId },
+      orderBy: { order: "asc" },
+    });
+
+    if (testCases.length === 0) {
+      console.log("No test cases found for question", questionId);
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status: "Failure",
+          output: "No test cases configured for this question.",
+        },
+      });
+      return;
+    }
+
+    let passedCount = 0;
+    let anyTimedOut = false;
+    let anyRuntimeError = false;
+    let lastOutput = "";
+    let firstFailingOutput = "";
+    const resultRows: {
+      testCaseId: string;
+      passed: boolean;
+      actualOutput: string;
+      timedOut: boolean;
+    }[] = [];
+
+    for (const testCase of testCases) {
+      const { output, error, exitCode, timedOut } = await runInDocker(
+        language,
+        code,
+        testCase.input,
+        TLE_MS,
+      );
+
+      const hasRuntimeError =
+        !timedOut &&
+        (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
+
+      if (hasRuntimeError) {
+        anyRuntimeError = true;
+      }
+
+      const passed =
+        !timedOut &&
+        !hasRuntimeError &&
+        normalize(output) === normalize(testCase.expectedOutput);
+
+      if (passed) passedCount++;
+      if (timedOut) anyTimedOut = true;
+
+      const displayOutput = error.trim()
+        ? output.trim()
+          ? `${output.trim()}\n[Stderr]: ${error.trim()}`
+          : error.trim()
+        : output.trim();
+
+      if (!passed && !firstFailingOutput) {
+        firstFailingOutput = displayOutput;
+      }
+      lastOutput = displayOutput;
+
+      resultRows.push({
+        testCaseId: testCase.id,
+        passed,
+        actualOutput: displayOutput,
+        timedOut,
+      });
+    }
+
+    const status = anyTimedOut
+      ? "TLE"
+      : anyRuntimeError && passedCount === 0
+        ? "Failure"
+        : passedCount === testCases.length
+          ? "Success"
+          : "WrongAnswer";
+
+    console.log(`${passedCount}/${testCases.length} passed, status: ${status}`);
+
+    const finalOutput = passedCount === testCases.length ? lastOutput : (firstFailingOutput || lastOutput);
+
+    await prisma.$transaction([
+      prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status,
+          output: finalOutput,
+          passedCount,
+          totalCount: testCases.length,
+        },
+      }),
+      prisma.submissionResult.createMany({
+        data: resultRows.map((r) => ({
+          submissionId,
+          testCaseId: r.testCaseId,
+          passed: r.passed,
+          actualOutput: r.actualOutput,
+          timedOut: r.timedOut,
+        })),
+      }),
+    ]);
+  } catch (submissionErr: any) {
+    console.error(`Error processing submission ${submissionId}:`, submissionErr);
+    try {
+      await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status: "Failure",
+          output: `Worker runtime error: ${submissionErr?.message || "Internal error"}`,
+        },
+      });
+    } catch (dbErr) {
+      console.error("Failed to update submission status after error:", dbErr);
     }
   }
 }

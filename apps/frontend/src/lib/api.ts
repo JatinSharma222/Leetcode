@@ -1,4 +1,4 @@
-import type { Question, Submission } from "./types";
+import type { Question, Submission, RunResultResponse } from "./types";
 
 const API_BASE_URL = (import.meta as any).env?.BUN_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -123,6 +123,19 @@ export async function fetchQuestionById(id: string): Promise<Question | null> {
 export async function fetchUserSubmissions(): Promise<Submission[]> {
   const data = await apiFetch("/submission/submissions", {}, true);
   return data?.submissions ?? [];
+}
+
+export async function runCodeAPI(payload: {
+  questionId: string;
+  code: string;
+  language: string;
+  customTestCases?: string[];
+}): Promise<RunResultResponse> {
+  const data = await apiFetch("/submission/run", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }, true);
+  return data;
 }
 
 export async function submitCodeAPI(payload: {

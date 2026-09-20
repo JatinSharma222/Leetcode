@@ -1,12 +1,13 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
-import { Copy, RotateCcw, Check } from "lucide-react";
+import { Copy, RotateCcw, Check, Maximize2, Minimize2, Settings, Type } from "lucide-react";
 import { Button } from "./button";
 
 interface CodeEditorProps {
   code: string;
   onChange: (newCode: string) => void;
   language: string;
+  onRun?: () => void;
   onSubmit?: () => void;
   onReset?: () => void;
   disabled?: boolean;
@@ -22,12 +23,17 @@ export default function CodeEditor({
   code,
   onChange,
   language,
+  onRun,
   onSubmit,
   onReset,
   disabled = false,
 }: CodeEditorProps) {
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
+  const [fontSize, setFontSize] = useState<number>(13);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
   const editorRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -42,44 +48,52 @@ export default function CodeEditor({
       },
     });
 
-    // Define a custom dark theme inspired by One Dark Pro
+    // Register Cmd/Ctrl + ' shortcut for run code
+    editor.addAction({
+      id: "run-code",
+      label: "Run Code",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Quote],
+      run: () => {
+        onRun?.();
+      },
+    });
+
+    // Define custom dark theme inspired by LeetCode / One Dark
     monaco.editor.defineTheme("leetcode-dark", {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "6A737D", fontStyle: "italic" },
-        { token: "keyword", foreground: "C678DD" },
-        { token: "string", foreground: "98C379" },
-        { token: "number", foreground: "D19A66" },
-        { token: "type", foreground: "E5C07B" },
-        { token: "function", foreground: "61AFEF" },
-        { token: "variable", foreground: "E06C75" },
-        { token: "operator", foreground: "56B6C2" },
-        { token: "delimiter", foreground: "ABB2BF" },
-        { token: "identifier", foreground: "ABB2BF" },
+        { token: "comment", foreground: "6a737d", fontStyle: "italic" },
+        { token: "keyword", foreground: "c678dd" },
+        { token: "string", foreground: "98c379" },
+        { token: "number", foreground: "d19a66" },
+        { token: "type", foreground: "e5c07b" },
+        { token: "function", foreground: "61afef" },
+        { token: "variable", foreground: "e06c75" },
+        { token: "operator", foreground: "56b6c2" },
+        { token: "delimiter", foreground: "abb2bf" },
+        { token: "identifier", foreground: "abb2bf" },
       ],
       colors: {
-        "editor.background": "#0f1117",
-        "editor.foreground": "#ABB2BF",
-        "editor.lineHighlightBackground": "#1a1d2e",
-        "editor.selectionBackground": "#3E4451",
-        "editorCursor.foreground": "#4653FF",
-        "editorLineNumber.foreground": "#495162",
-        "editorLineNumber.activeForeground": "#ABB2BF",
-        "editor.selectionHighlightBackground": "#3E445180",
-        "editorBracketMatch.background": "#3E445140",
-        "editorBracketMatch.border": "#4653FF60",
-        "editorIndentGuide.background": "#3B4048",
-        "editorIndentGuide.activeBackground": "#5C6370",
-        "editorGutter.background": "#0f1117",
-        "scrollbarSlider.background": "#4E566680",
-        "scrollbarSlider.hoverBackground": "#5A637580",
+        "editor.background": "#141417",
+        "editor.foreground": "#d1d5db",
+        "editor.lineHighlightBackground": "#1e1e24",
+        "editor.selectionBackground": "#333842",
+        "editorCursor.foreground": "#ffa116",
+        "editorLineNumber.foreground": "#4b5563",
+        "editorLineNumber.activeForeground": "#e5e7eb",
+        "editor.selectionHighlightBackground": "#33384280",
+        "editorBracketMatch.background": "#ffa11620",
+        "editorBracketMatch.border": "#ffa11680",
+        "editorIndentGuide.background": "#26262e",
+        "editorIndentGuide.activeBackground": "#40404c",
+        "editorGutter.background": "#141417",
+        "scrollbarSlider.background": "#3f3f4660",
+        "scrollbarSlider.hoverBackground": "#52525b80",
       },
     });
 
     monaco.editor.setTheme("leetcode-dark");
-
-    // Focus the editor on mount
     editor.focus();
   };
 
@@ -89,7 +103,6 @@ export default function CodeEditor({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for non-HTTPS environments
       const textarea = document.createElement("textarea");
       textarea.value = code;
       textarea.style.position = "fixed";
@@ -103,30 +116,90 @@ export default function CodeEditor({
     }
   };
 
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!isFullscreen) {
+      if (containerRef.current.requestFullscreen) {
+        containerRef.current.requestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setIsFullscreen(false);
+    }
+  };
+
+  const cycleFontSize = () => {
+    setFontSize((prev) => (prev === 12 ? 14 : prev === 14 ? 16 : 12));
+  };
+
   return (
-    <div className="flex flex-col h-full w-full rounded-xl border border-neutral-800 bg-[#0f1117] overflow-hidden shadow-inner font-mono text-sm">
+    <div
+      ref={containerRef}
+      className={`flex flex-col h-full w-full rounded-xl border border-border bg-[#141417] overflow-hidden shadow-sm font-mono text-sm ${
+        isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""
+      }`}
+    >
       {/* Editor Header Bar */}
-      <div className="flex h-10 items-center justify-between border-b border-neutral-800 bg-[#161922] px-4 select-none">
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-[#1a1a1f] px-3 select-none">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80" />
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
-          <span className="ml-2 text-xs font-semibold tracking-wider text-neutral-400 uppercase">
-            {language}
+          <span className="h-2 w-2 rounded-full bg-rose-500/80" />
+          <span className="h-2 w-2 rounded-full bg-amber-500/80" />
+          <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
+          <span className="ml-2 text-[11px] font-semibold tracking-wider text-neutral-400 uppercase font-sans">
+            Code Editor ({language})
           </span>
         </div>
 
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={cycleFontSize}
+            title={`Font size: ${fontSize}px (click to toggle)`}
+            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800 text-[11px]"
+          >
+            <span className="font-sans font-semibold text-[10px]">{fontSize}</span>
+          </Button>
+
           {onReset && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onReset}
-              title="Reset starter code"
-              className="text-neutral-400 hover:text-white hover:bg-neutral-800"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowConfirmReset(true)}
+                title="Reset starter code"
+                className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+
+              {showConfirmReset && (
+                <div className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-border bg-[#1a1a1f] p-3 shadow-xl space-y-2.5 font-sans">
+                  <p className="text-xs text-neutral-300 font-medium">Reset code to default?</p>
+                  <p className="text-[11px] text-neutral-500">Your current changes will be discarded.</p>
+                  <div className="flex justify-end gap-1.5 pt-1">
+                    <button
+                      onClick={() => setShowConfirmReset(false)}
+                      className="px-2 py-1 text-[11px] text-neutral-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowConfirmReset(false);
+                        onReset();
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded hover:bg-rose-500/30"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <Button
@@ -134,15 +207,25 @@ export default function CodeEditor({
             size="icon-sm"
             onClick={handleCopy}
             title="Copy code"
-            className="text-neutral-400 hover:text-white hover:bg-neutral-800"
+            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </div>
 
-      {/* Monaco Editor */}
-      <div className="flex-1 overflow-hidden">
+      {/* Monaco Editor Container */}
+      <div className="flex-1 overflow-hidden min-h-0">
         <MonacoEditor
           height="100%"
           language={LANGUAGE_MAP[language] || "plaintext"}
@@ -152,12 +235,12 @@ export default function CodeEditor({
           theme="leetcode-dark"
           loading={
             <div className="flex h-full items-center justify-center text-neutral-500 text-xs">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-circuit border-t-transparent mr-2" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
               Loading editor...
             </div>
           }
           options={{
-            fontSize: 14,
+            fontSize,
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
             fontLigatures: true,
             lineNumbers: "on",
@@ -178,13 +261,13 @@ export default function CodeEditor({
             formatOnPaste: true,
             suggestOnTriggerCharacters: true,
             quickSuggestions: true,
-            padding: { top: 12, bottom: 12 },
+            padding: { top: 10, bottom: 10 },
             readOnly: disabled,
             domReadOnly: disabled,
             scrollbar: {
-              verticalScrollbarSize: 8,
-              horizontalScrollbarSize: 8,
-              verticalSliderSize: 8,
+              verticalScrollbarSize: 7,
+              horizontalScrollbarSize: 7,
+              verticalSliderSize: 7,
             },
             overviewRulerBorder: false,
             hideCursorInOverviewRuler: true,
@@ -194,9 +277,13 @@ export default function CodeEditor({
       </div>
 
       {/* Footer shortcut bar */}
-      <div className="flex h-7 items-center justify-between border-t border-neutral-800/80 bg-[#12141c] px-4 text-[11px] text-neutral-500 select-none">
-        <span>Press <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">Tab</kbd> to indent</span>
-        <span>Submit: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + Enter</kbd></span>
+      <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-[#16161a] px-3 text-[11px] text-neutral-500 select-none">
+        <div className="flex items-center gap-2">
+          <span>Run: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + '</kbd></span>
+          <span>•</span>
+          <span>Submit: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + ↵</kbd></span>
+        </div>
+        <span>Tab to indent</span>
       </div>
     </div>
   );
