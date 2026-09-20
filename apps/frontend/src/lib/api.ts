@@ -12,44 +12,36 @@ export class ApiError extends Error {
 }
 
 
-export function getAuthToken(): string | null {
-  return localStorage.getItem("token");
+export function getSavedUsername(): string | null {
+  return localStorage.getItem("username");
 }
 
-/**
- * Decodes a JWT payload for display purposes only (e.g. showing the
- * username in the navbar). This does NOT verify the signature — it's not a
- * security check, just reading data the server already signed and sent us.
- */
-export function decodeJwtPayload(token: string): { userId?: string; username?: string } | null {
-  try {
-    const base64 = token.split(".")[1];
-    if (!base64) return null;
-    const json = decodeURIComponent(
-      atob(base64.replace(/-/g, "+").replace(/_/g, "/"))
-        .split("")
-        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
-        .join(""),
-    );
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
-
-export function setAuthToken(token: string) {
-  localStorage.setItem("token", token);
-  const payload = decodeJwtPayload(token);
-  if (payload?.username) {
-    localStorage.setItem("username", payload.username);
-  }
+export function setSavedUsername(username: string) {
+  localStorage.setItem("username", username);
 }
 
 export function clearAuthToken() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("username");
+  clearAuthSession();
 }
 
+export function clearAuthSession() {
+  localStorage.removeItem("username");
+  localStorage.removeItem("token");
+}
+
+export async function fetchCurrentUser(): Promise<{ userId: string; username: string } | null> {
+  try {
+    const data = await apiFetch("/auth/me", {}, true);
+    if (data?.user) {
+      setSavedUsername(data.user.username);
+      return data.user;
+    }
+    return null;
+  } catch {
+    clearAuthSession();
+    return null;
+  }
+}
 
 async function apiFetch(path: string, init: RequestInit = {}, requireAuth = false): Promise<any> {
   const headers: Record<string, string> = {
@@ -57,15 +49,13 @@ async function apiFetch(path: string, init: RequestInit = {}, requireAuth = fals
     ...(init.headers as Record<string, string> | undefined),
   };
 
-  if (requireAuth) {
-    const token = getAuthToken();
-    if (!token) throw new ApiError("Not authenticated", 401);
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
   } catch (err) {
     throw new ApiError("Couldn't reach the server. Is the backend running?", 0);
   }
@@ -78,21 +68,20 @@ async function apiFetch(path: string, init: RequestInit = {}, requireAuth = fals
   }
 
   if (!res.ok) {
-    if (res.status === 401) clearAuthToken();
+    if (res.status === 401) clearAuthSession();
     throw new ApiError(data?.message || `Request failed (${res.status})`, res.status);
   }
 
   return data;
 }
 
-
 export async function signIn(username: string, password: string): Promise<void> {
   const data = await apiFetch("/auth/signin", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
-  if (!data?.token) throw new ApiError("Server didn't return an auth token.", 500);
-  setAuthToken(data.token);
+  const uname = data?.user?.username || username;
+  setSavedUsername(uname);
 }
 
 export async function signUp(username: string, password: string): Promise<void> {
@@ -100,6 +89,17 @@ export async function signUp(username: string, password: string): Promise<void> 
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+  setSavedUsername(username);
+}
+
+export async function signOut(): Promise<void> {
+  try {
+    await apiFetch("/auth/signout", { method: "POST" });
+  } catch {
+    // best-effort signout
+  } finally {
+    clearAuthSession();
+  }
 }
 
 

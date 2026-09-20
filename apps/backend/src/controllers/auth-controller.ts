@@ -52,12 +52,27 @@ export const signup = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await prisma.user.create({
+    const newUser = await prisma.user.create({
       data: {
         username,
         password: hashedPassword,
       },
     });
+
+    const jwtSecret = process.env.JWT_SECRET;
+    if (jwtSecret) {
+      const token = jwt.sign(
+        {
+          userId: newUser.id,
+          username: newUser.username,
+        },
+        jwtSecret,
+        {
+          expiresIn: "7d",
+        },
+      );
+      res.cookie("token", token, COOKIE_OPTIONS);
+    }
 
     res.status(201).json({
       message: "User created successfully",
@@ -68,6 +83,15 @@ export const signup = async (req: Request, res: Response) => {
       message: "Internal server error",
     });
   }
+};
+
+const isProduction = process.env.NODE_ENV === "production";
+export const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? ("none" as const) : ("lax" as const),
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: "/",
 };
 
 export const signin = async (req: Request, res: Response) => {
@@ -118,9 +142,16 @@ export const signin = async (req: Request, res: Response) => {
         expiresIn: "7d",
       },
     );
+
+    res.cookie("token", token, COOKIE_OPTIONS);
+
     return res.status(200).json({
       message: "Login successful",
       token,
+      user: {
+        id: user.id,
+        username: user.username,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -129,3 +160,29 @@ export const signin = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const signout = async (req: Request, res: Response) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    path: "/",
+  });
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
+};
+
+export const getMe = async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    return res.status(200).json({ user });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+

@@ -22,15 +22,13 @@ if (!JWT_SECRET) {
 
 export const auth = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers.authorization;
+    // 1. Check HttpOnly cookie first
+    let token = req.cookies?.token;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        message: "Unauthorized",
-      });
+    // 2. Fallback to Authorization: Bearer <token> header
+    if (!token && req.headers.authorization?.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
     }
-
-    const token = authHeader.split(" ")[1];
 
     if (!token) {
       return res.status(401).json({

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { signin, signup } from "../controllers/auth-controller";
+import { signin, signup, signout, getMe } from "../controllers/auth-controller";
+import { auth } from "../middleware/auth";
 import { createRateLimiter } from "../middleware/rate-limiter";
 
 export const authRouter = Router();
@@ -14,3 +15,7 @@ const authRateLimiter = createRateLimiter({
 
 authRouter.post("/signup", authRateLimiter, signup);
 authRouter.post("/signin", authRateLimiter, signin);
+authRouter.post("/signout", signout);
+authRouter.post("/logout", signout);
+authRouter.get("/me", auth, getMe);
+

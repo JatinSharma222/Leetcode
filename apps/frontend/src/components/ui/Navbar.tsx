@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { Terminal, LogOut, CheckCircle2, User, Layers, Moon, Sun } from "lucide-react";
 import { Button } from "./button";
-import { clearAuthToken } from "@/lib/api";
+import { signOut, getSavedUsername } from "@/lib/api";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const username = localStorage.getItem("username") || "Developer";
+  const username = getSavedUsername() || "Developer";
 
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -38,8 +38,8 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
-    clearAuthToken();
+  const handleLogout = async () => {
+    await signOut();
     navigate("/auth");
   };
 
