@@ -58,42 +58,42 @@ export default function CodeEditor({
       },
     });
 
-    // Define custom dark theme inspired by LeetCode / One Dark
-    monaco.editor.defineTheme("leetcode-dark", {
+    // Define custom luxury theme inspired by Black Cherry and Cream Vanilla
+    monaco.editor.defineTheme("atelier-burgundy", {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "6a737d", fontStyle: "italic" },
-        { token: "keyword", foreground: "c678dd" },
-        { token: "string", foreground: "98c379" },
-        { token: "number", foreground: "d19a66" },
-        { token: "type", foreground: "e5c07b" },
-        { token: "function", foreground: "61afef" },
-        { token: "variable", foreground: "e06c75" },
-        { token: "operator", foreground: "56b6c2" },
-        { token: "delimiter", foreground: "abb2bf" },
-        { token: "identifier", foreground: "abb2bf" },
+        { token: "comment", foreground: "9E534E", fontStyle: "italic" },
+        { token: "keyword", foreground: "E4C7A8", fontStyle: "bold" },
+        { token: "string", foreground: "DFB58E" },
+        { token: "number", foreground: "F5D6B6" },
+        { token: "type", foreground: "F0E2D1", fontStyle: "italic" },
+        { token: "function", foreground: "F9E9D8" },
+        { token: "variable", foreground: "EEDCC8" },
+        { token: "operator", foreground: "CDB296" },
+        { token: "delimiter", foreground: "C5A586" },
+        { token: "identifier", foreground: "EEDCC8" },
       ],
       colors: {
-        "editor.background": "#141417",
-        "editor.foreground": "#d1d5db",
-        "editor.lineHighlightBackground": "#1e1e24",
-        "editor.selectionBackground": "#333842",
-        "editorCursor.foreground": "#ffa116",
-        "editorLineNumber.foreground": "#4b5563",
-        "editorLineNumber.activeForeground": "#e5e7eb",
-        "editor.selectionHighlightBackground": "#33384280",
-        "editorBracketMatch.background": "#ffa11620",
-        "editorBracketMatch.border": "#ffa11680",
-        "editorIndentGuide.background": "#26262e",
-        "editorIndentGuide.activeBackground": "#40404c",
-        "editorGutter.background": "#141417",
-        "scrollbarSlider.background": "#3f3f4660",
-        "scrollbarSlider.hoverBackground": "#52525b80",
+        "editor.background": "#460402",
+        "editor.foreground": "#EEDCC8",
+        "editor.lineHighlightBackground": "#56070380",
+        "editor.selectionBackground": "#74100B",
+        "editorCursor.foreground": "#EEDCC8",
+        "editorLineNumber.foreground": "#8E332F",
+        "editorLineNumber.activeForeground": "#EEDCC8",
+        "editor.selectionHighlightBackground": "#74100B80",
+        "editorBracketMatch.background": "#5D070360",
+        "editorBracketMatch.border": "#EEDCC860",
+        "editorIndentGuide.background": "#580905",
+        "editorIndentGuide.activeBackground": "#7E140E",
+        "editorGutter.background": "#3E0301",
+        "scrollbarSlider.background": "#5D070380",
+        "scrollbarSlider.hoverBackground": "#72100B",
       },
     });
 
-    monaco.editor.setTheme("leetcode-dark");
+    monaco.editor.setTheme("atelier-burgundy");
     editor.focus();
   };
 
@@ -138,18 +138,18 @@ export default function CodeEditor({
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col h-full w-full rounded-xl border border-border bg-[#141417] overflow-hidden shadow-sm font-mono text-sm ${
+      className={`flex flex-col h-full w-full rounded-xl border border-border bg-[#460402] overflow-hidden shadow-[0_4px_16px_rgba(93,7,3,0.18)] font-mono text-sm ${
         isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""
       }`}
     >
       {/* Editor Header Bar */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-[#1a1a1f] px-3 select-none">
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-[#3E0301] px-3 select-none">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-rose-500/80" />
-          <span className="h-2 w-2 rounded-full bg-amber-500/80" />
-          <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
-          <span className="ml-2 text-[11px] font-semibold tracking-wider text-neutral-400 uppercase font-sans">
-            Code Editor ({language})
+          <span className="h-2 w-2 rounded-full bg-[#7A120D]" />
+          <span className="h-2 w-2 rounded-full bg-[#9B6F30]" />
+          <span className="h-2 w-2 rounded-full bg-[#8B7032]" />
+          <span className="ml-2 font-display text-xs font-semibold tracking-wider text-[#EEDCC8] uppercase">
+            Atelier Editor ({language})
           </span>
         </div>
 
@@ -159,7 +159,7 @@ export default function CodeEditor({
             size="icon-sm"
             onClick={cycleFontSize}
             title={`Font size: ${fontSize}px (click to toggle)`}
-            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800 text-[11px]"
+            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703] text-[11px]"
           >
             <span className="font-sans font-semibold text-[10px]">{fontSize}</span>
           </Button>
@@ -171,19 +171,19 @@ export default function CodeEditor({
                 size="icon-sm"
                 onClick={() => setShowConfirmReset(true)}
                 title="Reset starter code"
-                className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+                className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
               </Button>
 
               {showConfirmReset && (
-                <div className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-border bg-[#1a1a1f] p-3 shadow-xl space-y-2.5 font-sans">
-                  <p className="text-xs text-neutral-300 font-medium">Reset code to default?</p>
-                  <p className="text-[11px] text-neutral-500">Your current changes will be discarded.</p>
+                <div className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-border bg-[#3E0301] p-3 shadow-xl space-y-2.5 font-sans">
+                  <p className="text-xs text-[#EEDCC8] font-medium">Reset code to default?</p>
+                  <p className="text-[11px] text-[#C5A586]">Your current changes will be discarded.</p>
                   <div className="flex justify-end gap-1.5 pt-1">
                     <button
                       onClick={() => setShowConfirmReset(false)}
-                      className="px-2 py-1 text-[11px] text-neutral-400 hover:text-white"
+                      className="px-2 py-1 text-[11px] text-[#C5A586] hover:text-[#EEDCC8] cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -192,7 +192,7 @@ export default function CodeEditor({
                         setShowConfirmReset(false);
                         onReset();
                       }}
-                      className="px-2.5 py-1 text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded hover:bg-rose-500/30"
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-[#7A120D] text-[#EEDCC8] border border-[#8C1813] rounded hover:bg-[#8C1813] cursor-pointer"
                     >
                       Reset
                     </button>
@@ -207,9 +207,9 @@ export default function CodeEditor({
             size="icon-sm"
             onClick={handleCopy}
             title="Copy code"
-            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-[#DFB58E]" /> : <Copy className="h-3.5 w-3.5" />}
           </Button>
 
           <Button
@@ -217,7 +217,7 @@ export default function CodeEditor({
             size="icon-sm"
             onClick={toggleFullscreen}
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
           >
             {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
@@ -225,16 +225,16 @@ export default function CodeEditor({
       </div>
 
       {/* Monaco Editor Container */}
-      <div className="flex-1 overflow-hidden min-h-0">
+      <div className="flex-1 overflow-hidden min-h-0 bg-[#460402]">
         <MonacoEditor
           height="100%"
           language={LANGUAGE_MAP[language] || "plaintext"}
           value={code}
           onChange={(value) => onChange(value ?? "")}
           onMount={handleEditorMount}
-          theme="leetcode-dark"
+          theme="atelier-burgundy"
           loading={
-            <div className="flex h-full items-center justify-center text-neutral-500 text-xs">
+            <div className="flex h-full items-center justify-center text-[#C5A586] text-xs">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
               Loading editor...
             </div>
@@ -277,11 +277,11 @@ export default function CodeEditor({
       </div>
 
       {/* Footer shortcut bar */}
-      <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-[#16161a] px-3 text-[11px] text-neutral-500 select-none">
+      <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-[#3E0301] px-3 text-[11px] text-[#C5A586] select-none">
         <div className="flex items-center gap-2">
-          <span>Run: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + '</kbd></span>
+          <span>Run: <kbd className="rounded bg-[#5D0703] border border-[#6E0A05] px-1 py-0.5 text-[#EEDCC8]">⌘ / Ctrl + '</kbd></span>
           <span>•</span>
-          <span>Submit: <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-300">⌘ / Ctrl + ↵</kbd></span>
+          <span>Submit: <kbd className="rounded bg-[#5D0703] border border-[#6E0A05] px-1 py-0.5 text-[#EEDCC8]">⌘ / Ctrl + ↵</kbd></span>
         </div>
         <span>Tab to indent</span>
       </div>

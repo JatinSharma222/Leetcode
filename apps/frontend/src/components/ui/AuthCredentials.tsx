@@ -36,14 +36,14 @@ function FormField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id} className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+        <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-wider text-foreground">
           {label}
         </Label>
         {trailing}
       </div>
       {children}
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-xs text-red-600">
+        <p id={`${id}-error`} role="alert" className="text-xs text-fail mt-1">
           {error}
         </p>
       )}
@@ -78,12 +78,12 @@ function PasswordInput({
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={hasError}
         aria-describedby={hasError ? `${id}-error` : undefined}
-        className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 pr-10 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
+        className="h-10 rounded-lg pr-10 text-sm bg-background/80 border-border shadow-[inset_0_1px_2px_rgba(93,7,3,0.06)]"
       />
       <button
         type="button"
         onClick={onToggleVisible}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-600"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
         aria-label={visible ? "Hide password" : "Show password"}
       >
         {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -177,15 +177,15 @@ export default function AuthCredentials() {
 
   return (
     <div id="auth-credentials" className="flex items-center justify-center">
-      <Card className="w-full max-w-[420px] rounded-2xl border border-neutral-200/80 bg-white p-0 shadow-xl shadow-neutral-200/50 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30">
+      <Card className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-0 shadow-[0_4px_24px_rgba(93,7,3,0.1)]">
         <CardHeader className="px-6 pt-6 pb-0">
-          <CardTitle className="font-display text-xl font-semibold text-neutral-900 dark:text-white">
-            {activeTab === "login" ? "Welcome back" : "Create an account"}
+          <CardTitle className="font-display text-2xl font-bold tracking-tight text-foreground">
+            {activeTab === "login" ? "Atelier Entry" : "Create Account"}
           </CardTitle>
-          <CardDescription className="text-sm text-neutral-500">
+          <CardDescription className="text-xs text-muted-foreground mt-1">
             {activeTab === "login"
-              ? "Enter your credentials to access your workspace."
-              : "Get started with a free account."}
+              ? "Present your credentials to access your algorithmic studio."
+              : "Register your developer account to begin practice."}
           </CardDescription>
         </CardHeader>
 
@@ -199,18 +199,18 @@ export default function AuthCredentials() {
             }}
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2 rounded-lg bg-neutral-100 p-1 h-10 dark:bg-neutral-800">
+            <TabsList className="grid w-full grid-cols-2 rounded-lg bg-secondary/70 border border-border/60 p-1 h-10">
               <TabsTrigger
                 id="tab-login"
                 value="login"
-                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500 dark:data-[state=active]:bg-neutral-700 dark:data-[state=active]:text-white dark:text-neutral-400"
+                className="rounded-md text-xs font-semibold tracking-wide uppercase transition-all data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs text-muted-foreground cursor-pointer"
               >
                 Log in
               </TabsTrigger>
               <TabsTrigger
                 id="tab-signup"
                 value="signup"
-                className="rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm text-neutral-500 dark:data-[state=active]:bg-neutral-700 dark:data-[state=active]:text-white dark:text-neutral-400"
+                className="rounded-md text-xs font-semibold tracking-wide uppercase transition-all data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-xs text-muted-foreground cursor-pointer"
               >
                 Sign up
               </TabsTrigger>
@@ -220,7 +220,7 @@ export default function AuthCredentials() {
             <TabsContent value="login" className="mt-5">
               <form onSubmit={handleLoginSubmit} noValidate className="space-y-4">
                 {signupSuccessMessage && (
-                  <div className="flex items-center gap-2 rounded-lg border border-pass/20 bg-pass/5 px-3 py-2 text-xs text-pass">
+                  <div className="flex items-center gap-2 rounded-lg border border-pass/30 bg-pass/10 px-3 py-2 text-xs text-pass">
                     <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                     {signupSuccessMessage}
                   </div>
@@ -236,7 +236,7 @@ export default function AuthCredentials() {
                     onChange={(e) => setLoginUsername(e.target.value)}
                     aria-invalid={!!fieldErrors.username}
                     aria-describedby={fieldErrors.username ? "login-username-error" : undefined}
-                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
+                    className="h-10 rounded-lg bg-background/80 border-border text-sm placeholder:text-muted-foreground/60 shadow-[inset_0_1px_2px_rgba(93,7,3,0.06)]"
                   />
                 </FormField>
 
@@ -253,7 +253,7 @@ export default function AuthCredentials() {
                 </FormField>
 
                 {formError && (
-                  <p role="alert" className="text-sm text-red-600">
+                  <p role="alert" className="text-xs text-fail">
                     {formError}
                   </p>
                 )}
@@ -261,10 +261,11 @@ export default function AuthCredentials() {
                 <Button
                   id="btn-login"
                   type="submit"
-                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  variant="default"
+                  className="mt-3 h-10 w-full rounded-lg text-xs font-semibold uppercase tracking-wider"
                   disabled={loading}
                 >
-                  {loading ? "Please wait..." : "Log in"}
+                  {loading ? "Verifying..." : "Enter Workspace"}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </form>
@@ -283,7 +284,7 @@ export default function AuthCredentials() {
                     onChange={(e) => setSignupUsername(e.target.value)}
                     aria-invalid={!!fieldErrors.username}
                     aria-describedby={fieldErrors.username ? "signup-username-error" : undefined}
-                    className="h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-sm placeholder:text-neutral-400 focus-visible:border-neutral-400 focus-visible:ring-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-500"
+                    className="h-10 rounded-lg bg-background/80 border-border text-sm placeholder:text-muted-foreground/60 shadow-[inset_0_1px_2px_rgba(93,7,3,0.06)]"
                   />
                 </FormField>
 
@@ -300,7 +301,7 @@ export default function AuthCredentials() {
                 </FormField>
 
                 {formError && (
-                  <p role="alert" className="text-sm text-red-600">
+                  <p role="alert" className="text-xs text-fail">
                     {formError}
                   </p>
                 )}
@@ -308,10 +309,11 @@ export default function AuthCredentials() {
                 <Button
                   id="btn-signup"
                   type="submit"
-                  className="mt-2 h-10 w-full rounded-lg bg-neutral-900 text-sm font-medium text-white transition-all hover:bg-neutral-800 active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  variant="default"
+                  className="mt-3 h-10 w-full rounded-lg text-xs font-semibold uppercase tracking-wider"
                   disabled={loading}
                 >
-                  {loading ? "Please wait..." : "Create account"}
+                  {loading ? "Creating..." : "Establish Account"}
                   <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </form>

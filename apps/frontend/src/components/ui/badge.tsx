@@ -8,13 +8,13 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border border-neutral-200 bg-neutral-100 text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200",
-        circuit: "border border-circuit/20 bg-circuit/10 text-circuit",
-        orange: "border border-circuit/20 bg-circuit/10 text-circuit",
-        success: "border border-pass/20 bg-pass/10 text-pass",
-        destructive: "border border-fail/20 bg-fail/10 text-fail",
-        warning: "border border-pending/20 bg-pending/10 text-pending",
-        outline: "border border-neutral-300 text-neutral-700 dark:border-neutral-700 dark:text-neutral-300",
+          "border border-border bg-secondary/50 text-foreground",
+        circuit: "border border-primary/20 bg-primary/10 text-primary",
+        orange: "border border-pending/25 bg-pending/10 text-pending",
+        success: "border border-pass/30 bg-pass/10 text-pass",
+        destructive: "border border-fail/30 bg-fail/10 text-fail",
+        warning: "border border-pending/30 bg-pending/10 text-pending",
+        outline: "border border-border text-foreground",
       },
     },
     defaultVariants: {
@@ -38,8 +38,8 @@ function Badge({ className, variant, dot = true, children, ...props }: BadgeProp
             "bg-pass": variant === "success",
             "bg-pending": variant === "warning",
             "bg-fail": variant === "destructive",
-            "bg-circuit": variant === "orange" || variant === "circuit",
-            "bg-neutral-400": !variant || variant === "default" || variant === "outline",
+            "bg-primary": variant === "orange" || variant === "circuit",
+            "bg-muted-foreground": !variant || variant === "default" || variant === "outline",
           })}
         />
       )}

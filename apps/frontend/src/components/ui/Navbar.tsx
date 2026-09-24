@@ -46,45 +46,44 @@ export default function Navbar() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-neutral-200/80 bg-white/90 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/90">
+    <header className="sticky top-0 z-40 w-full border-b border-[#74100B]/40 bg-[#5D0703] text-[#EEDCC8] shadow-[0_2px_8px_rgba(93,7,3,0.3)] backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
         {/* Left: Brand & Navigation */}
         <div className="flex items-center gap-8">
           <Link
             to="/"
-            className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+            className="flex items-center gap-2.5 transition-opacity hover:opacity-90 group"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-ink text-white dark:bg-white dark:text-ink">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EEDCC8] text-[#5D0703] shadow-[0_1px_3px_rgba(40,2,1,0.25)]">
               <Terminal className="h-4 w-4" strokeWidth={2.25} />
             </div>
-            <span className="font-display text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">
-              code<span className="text-circuit">space</span>
-              <span className="text-circuit">_</span>
+            <span className="font-display text-xl font-bold tracking-wider text-[#EEDCC8]">
+              ATELIER<span className="font-light italic text-[#DFB58E]">CODE</span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1.5">
             <Link
               to="/"
-              className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs tracking-wide uppercase font-medium transition-all ${
                 isActive("/")
-                  ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800/80 dark:text-white font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-white"
+                  ? "bg-[#74100B] text-[#EEDCC8] shadow-[inset_0_1px_0_0_rgba(238,220,200,0.2)] font-semibold"
+                  : "text-[#EEDCC8]/70 hover:bg-[#6B0A06] hover:text-[#EEDCC8]"
               }`}
             >
-              <Layers className="h-4 w-4 text-circuit" />
+              <Layers className="h-3.5 w-3.5 text-[#DFB58E]" />
               Problems
             </Link>
 
             <Link
               to="/submissions"
-              className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs tracking-wide uppercase font-medium transition-all ${
                 isActive("/submissions")
-                  ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800/80 dark:text-white font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-900 dark:hover:text-white"
+                  ? "bg-[#74100B] text-[#EEDCC8] shadow-[inset_0_1px_0_0_rgba(238,220,200,0.2)] font-semibold"
+                  : "text-[#EEDCC8]/70 hover:bg-[#6B0A06] hover:text-[#EEDCC8]"
               }`}
             >
-              <CheckCircle2 className="h-4 w-4 text-pass" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#DFB58E]" />
               Submissions
             </Link>
           </nav>
@@ -96,17 +95,17 @@ export default function Navbar() {
             variant="ghost"
             size="icon-sm"
             onClick={toggleTheme}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+            title={isDark ? "Switch to cream vanilla background" : "Switch to deep burgundy background"}
+            className="text-[#EEDCC8]/80 hover:text-[#EEDCC8] hover:bg-[#6B0A06]"
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
 
-          <div className="flex items-center gap-2 border-l border-neutral-200 pl-3 dark:border-neutral-800">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-              <User className="h-4 w-4" />
+          <div className="flex items-center gap-2.5 border-l border-[#74100B] pl-3">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EEDCC8]/15 border border-[#EEDCC8]/30 text-[#EEDCC8]">
+              <User className="h-3.5 w-3.5" />
             </div>
-            <span className="hidden sm:inline font-mono text-xs font-medium text-neutral-700 dark:text-neutral-300 max-w-[100px] truncate">
+            <span className="hidden sm:inline font-sans text-xs font-medium tracking-wide text-[#EEDCC8] max-w-[120px] truncate">
               {username}
             </span>
 
@@ -115,9 +114,9 @@ export default function Navbar() {
               size="icon-sm"
               onClick={handleLogout}
               title="Log out"
-              className="text-neutral-500 hover:text-fail hover:bg-fail/10"
+              className="text-[#EEDCC8]/70 hover:text-[#EEDCC8] hover:bg-[#74100B]"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>

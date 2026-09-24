@@ -27,9 +27,9 @@ export function TestStrip({ total, passed, allFailed = false, size = "md", class
           className={cn(
             "flex-1 min-w-[3px] rounded-[1.5px] transition-colors duration-300",
             height,
-            state === "pass" && "bg-pass",
-            state === "fail" && "bg-fail",
-            state === "neutral" && "bg-neutral-300 dark:bg-neutral-700",
+            state === "pass" && "bg-pass shadow-[0_0_4px_rgba(139,112,50,0.4)]",
+            state === "fail" && "bg-fail shadow-[0_0_4px_rgba(122,18,13,0.4)]",
+            state === "neutral" && "bg-secondary/80 border border-border/30",
           )}
         />
       ))}

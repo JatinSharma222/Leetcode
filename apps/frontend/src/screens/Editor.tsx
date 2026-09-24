@@ -38,16 +38,16 @@ const LANGUAGES = [
 ];
 
 const DIFFICULTY_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  "sum-two-numbers": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  "reverse-string": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  fizzbuzz: { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  "palindrome-check": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  factorial: { label: "Medium", color: "text-[#ffc01e]", bg: "bg-[#ffc01e]/10 border-[#ffc01e]/20" },
-  "max-in-array": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  "gcd-two-numbers": { label: "Medium", color: "text-[#ffc01e]", bg: "bg-[#ffc01e]/10 border-[#ffc01e]/20" },
-  "count-vowels": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
-  "two-sum": { label: "Medium", color: "text-[#ffc01e]", bg: "bg-[#ffc01e]/10 border-[#ffc01e]/20" },
-  "binary-to-decimal": { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" },
+  "sum-two-numbers": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  "reverse-string": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  fizzbuzz: { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  "palindrome-check": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  factorial: { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
+  "max-in-array": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  "gcd-two-numbers": { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
+  "count-vowels": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
+  "two-sum": { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
+  "binary-to-decimal": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
 };
 
 const TOPICS_MAP: Record<string, string[]> = {
@@ -304,10 +304,10 @@ export default function Editor() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f12] text-neutral-400 font-sans">
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground font-sans">
         <div className="flex items-center gap-3 text-sm">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Loading workspace...
+          Preparing workspace...
         </div>
       </div>
     );
@@ -315,44 +315,44 @@ export default function Editor() {
 
   if (loadError || !question) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#0f0f12] text-neutral-400 gap-3 font-sans">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background text-muted-foreground gap-3 font-sans">
         <AlertTriangle className="h-7 w-7 text-fail" />
-        <p className="text-lg font-semibold text-white">
-          {loadError ? "Couldn't load problem" : "Problem not found"}
+        <p className="font-display text-xl font-bold text-foreground">
+          {loadError ? "Challenge Unavailable" : "Challenge not found"}
         </p>
-        {loadError && <p className="text-sm text-neutral-500 max-w-sm text-center">{loadError}</p>}
-        <Link to="/" className="mt-2 text-sm text-primary hover:underline">
-          Return to Dashboard
+        {loadError && <p className="text-sm text-muted-foreground max-w-sm text-center">{loadError}</p>}
+        <Link to="/" className="mt-2 text-sm text-primary font-medium hover:underline">
+          Return to Studio
         </Link>
       </div>
     );
   }
 
   return (
-    <div className={`flex h-screen flex-col bg-[#0f0f12] text-neutral-200 font-sans overflow-hidden select-none ${isDraggingH || isDraggingV ? "cursor-col-resize select-none" : ""}`}>
+    <div className={`flex h-screen flex-col bg-background text-foreground font-sans overflow-hidden select-none ${isDraggingH || isDraggingV ? "cursor-col-resize select-none" : ""}`}>
       {/* TOP HEADER BAR */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-[#18181c] px-3">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#74100B]/50 bg-[#5D0703] text-[#EEDCC8] px-3 shadow-[0_2px_8px_rgba(93,7,3,0.25)]">
         {/* Left: Navigation & Problem Title */}
         <div className="flex items-center gap-2.5">
           <Link
             to="/"
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/80 px-2.5 py-1 text-xs font-medium text-neutral-300 hover:text-white hover:border-neutral-700 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-[#74100B] bg-[#72100B] px-2.5 py-1 text-xs font-medium text-[#EEDCC8] hover:bg-[#83140F] transition-all shadow-xs"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Problems</span>
+            <span className="hidden sm:inline font-sans text-xs">Archives</span>
           </Link>
 
-          <div className="flex items-center gap-1 border-l border-border pl-2">
+          <div className="flex items-center gap-1 border-l border-[#74100B] pl-2">
             {prevQuestion ? (
               <Link
                 to={`/problem/${prevQuestion.id}`}
                 title={`Previous: ${prevQuestion.title}`}
-                className="p-1 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded"
+                className="p-1 text-[#EEDCC8]/70 hover:text-[#EEDCC8] hover:bg-[#72100B] rounded transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Link>
             ) : (
-              <span className="p-1 text-neutral-600 cursor-not-allowed">
+              <span className="p-1 text-[#EEDCC8]/30 cursor-not-allowed">
                 <ChevronLeft className="h-4 w-4" />
               </span>
             )}
@@ -361,23 +361,23 @@ export default function Editor() {
               <Link
                 to={`/problem/${nextQuestion.id}`}
                 title={`Next: ${nextQuestion.title}`}
-                className="p-1 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded"
+                className="p-1 text-[#EEDCC8]/70 hover:text-[#EEDCC8] hover:bg-[#72100B] rounded transition-colors"
               >
                 <ChevronRight className="h-4 w-4" />
               </Link>
             ) : (
-              <span className="p-1 text-neutral-600 cursor-not-allowed">
+              <span className="p-1 text-[#EEDCC8]/30 cursor-not-allowed">
                 <ChevronRight className="h-4 w-4" />
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 ml-1 truncate">
-            <h1 className="font-display text-sm font-semibold text-white truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+          <div className="flex items-center gap-2.5 ml-1 truncate">
+            <h1 className="font-display text-base font-bold text-[#EEDCC8] tracking-wide truncate max-w-[200px] sm:max-w-xs md:max-w-md">
               {question.title}
             </h1>
             {diff && (
-              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${diff.bg} ${diff.color}`}>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold font-mono border ${diff.bg} ${diff.color}`}>
                 {diff.label}
               </span>
             )}
@@ -390,7 +390,7 @@ export default function Editor() {
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             disabled={isSubmitting || isRunning}
-            className="h-7.5 rounded-md border border-border bg-secondary px-2.5 text-xs font-semibold text-neutral-200 focus:border-primary focus:outline-none cursor-pointer disabled:opacity-50 font-mono"
+            className="h-7.5 rounded-md border border-[#74100B] bg-[#4B0502] px-2.5 text-xs font-semibold text-[#EEDCC8] focus:outline-none cursor-pointer disabled:opacity-50 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
           >
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -401,32 +401,33 @@ export default function Editor() {
 
           <Button
             size="sm"
-            variant="outline"
+            variant="secondary"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting}
-            className="h-7.5 px-3 text-xs font-medium border-border bg-secondary text-neutral-200 hover:text-white hover:bg-neutral-800 active:scale-[0.98]"
+            className="h-7.5 px-3 text-xs font-medium"
           >
-            <Play className={`mr-1.5 h-3 w-3 text-neutral-300 fill-current ${isRunning ? "animate-spin" : ""}`} />
+            <Play className={`mr-1.5 h-3 w-3 text-foreground fill-current ${isRunning ? "animate-spin" : ""}`} />
             {isRunning ? "Running..." : "Run"}
-            <span className="hidden md:inline ml-1 text-[10px] text-neutral-500 font-mono">⌘'</span>
+            <span className="hidden md:inline ml-1 text-[10px] text-muted-foreground font-mono">⌘'</span>
           </Button>
 
           <Button
             size="sm"
+            variant="default"
             onClick={handleSubmitCode}
             disabled={isSubmitting || isRunning}
-            className="h-7.5 px-3.5 text-xs font-semibold bg-pass hover:bg-pass/90 text-white shadow-sm active:scale-[0.98]"
+            className="h-7.5 px-3.5 text-xs font-semibold bg-[#7A120D] text-[#EEDCC8] border-b-2 border-[#540A06] hover:bg-[#8E1913]"
           >
             <Send className="mr-1.5 h-3 w-3" />
             {isSubmitting ? "Submitting..." : "Submit"}
-            <span className="hidden md:inline ml-1 text-[10px] text-emerald-100 font-mono">⌘↵</span>
+            <span className="hidden md:inline ml-1 text-[10px] text-[#EEDCC8]/80 font-mono">⌘↵</span>
           </Button>
         </div>
       </header>
 
       {/* Error alert bar */}
       {(runError || submitError) && (
-        <div className="flex items-center gap-2 bg-fail/10 border-b border-fail/20 px-4 py-1.5 text-xs text-fail shrink-0">
+        <div className="flex items-center gap-2 bg-fail/10 border-b border-fail/30 px-4 py-1.5 text-xs text-fail shrink-0">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>{runError || submitError}</span>
         </div>
@@ -437,16 +438,16 @@ export default function Editor() {
         {/* LEFT PANE: Description & Submissions */}
         <div
           style={{ width: `${leftPanePercent}%` }}
-          className="flex flex-col border-r border-border bg-[#18181c] overflow-hidden shrink-0"
+          className="flex flex-col border-r border-border bg-card overflow-hidden shrink-0 shadow-sm"
         >
           {/* Left Tabs bar */}
-          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-[#141417] px-3 select-none">
+          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-secondary/50 px-3 select-none">
             <button
               onClick={() => setActiveLeftTab("description")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
                 activeLeftTab === "description"
-                  ? "bg-neutral-800 text-white font-semibold shadow-xs"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40"
+                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <FileText className="h-3.5 w-3.5 text-primary" />
@@ -455,10 +456,10 @@ export default function Editor() {
 
             <button
               onClick={() => setActiveLeftTab("submissions")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
                 activeLeftTab === "submissions"
-                  ? "bg-neutral-800 text-white font-semibold shadow-xs"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/40"
+                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <History className="h-3.5 w-3.5 text-pass" />
@@ -467,27 +468,27 @@ export default function Editor() {
           </div>
 
           {/* Left Content */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm text-neutral-300 leading-relaxed select-text">
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm text-foreground leading-relaxed select-text">
             {activeLeftTab === "description" ? (
               <div className="space-y-5">
                 <div>
-                  <h2 className="font-display text-xl font-bold text-white tracking-tight">
+                  <h2 className="font-display text-2xl font-bold text-foreground tracking-tight">
                     {question.title}
                   </h2>
 
                   {/* Difficulty & Topics row */}
                   <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                     {diff && (
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${diff.bg} ${diff.color}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono border ${diff.bg} ${diff.color}`}>
                         {diff.label}
                       </span>
                     )}
                     {topics.map((t) => (
                       <span
                         key={t}
-                        className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-neutral-800/70 border border-neutral-700/60 text-neutral-400 flex items-center gap-1"
+                        className="px-2.5 py-0.5 rounded-full text-[11px] font-medium font-mono bg-secondary/70 border border-border/60 text-muted-foreground flex items-center gap-1"
                       >
-                        <Tag className="h-2.5 w-2.5 text-neutral-500" />
+                        <Tag className="h-2.5 w-2.5 text-muted-foreground/70" />
                         {t}
                       </span>
                     ))}
@@ -495,22 +496,22 @@ export default function Editor() {
                 </div>
 
                 {/* Problem Statement */}
-                <div className="whitespace-pre-line text-sm leading-relaxed text-neutral-200 font-sans border-t border-border pt-4">
+                <div className="whitespace-pre-line text-sm leading-relaxed text-foreground font-sans border-t border-border/60 pt-4">
                   {question.description}
                 </div>
 
                 {/* Sample Examples */}
                 {question.testCases && question.testCases.some((tc) => tc.isSample) && (
                   <div className="space-y-4 pt-2">
-                    <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-                      Examples
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">
+                      Curated Examples
                     </h3>
                     {question.testCases
                       .filter((tc) => tc.isSample)
                       .map((tc, index) => (
                         <div
                           key={tc.id || index}
-                          className="rounded-xl border border-border bg-[#141417] p-3.5 space-y-2 font-mono text-xs"
+                          className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2 font-mono text-xs shadow-xs"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-sans font-semibold text-primary text-xs">
@@ -522,12 +523,12 @@ export default function Editor() {
                                 setCopiedExampleIndex(index);
                                 setTimeout(() => setCopiedExampleIndex(null), 1500);
                               }}
-                              className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-neutral-300 font-sans"
+                              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-sans cursor-pointer"
                             >
                               {copiedExampleIndex === index ? (
                                 <>
-                                  <Check className="h-3 w-3 text-emerald-400" />
-                                  <span className="text-emerald-400">Copied</span>
+                                  <Check className="h-3 w-3 text-pass" />
+                                  <span className="text-pass">Copied</span>
                                 </>
                               ) : (
                                 <>
@@ -538,13 +539,13 @@ export default function Editor() {
                             </button>
                           </div>
 
-                          <div className="bg-[#0f0f12] p-2.5 rounded-lg border border-border space-y-1.5">
+                          <div className="bg-background/80 p-2.5 rounded-lg border border-border space-y-1.5 shadow-[inset_0_1px_2px_rgba(93,7,3,0.04)]">
                             <div>
-                              <span className="text-neutral-500 font-sans select-none">Input: </span>
-                              <span className="text-neutral-200 font-semibold">{tc.input}</span>
+                              <span className="text-muted-foreground font-sans select-none">Input: </span>
+                              <span className="text-foreground font-semibold">{tc.input}</span>
                             </div>
                             <div>
-                              <span className="text-neutral-500 font-sans select-none">Output: </span>
+                              <span className="text-muted-foreground font-sans select-none">Output: </span>
                               <span className="text-pass font-semibold">{tc.expectedOutput}</span>
                             </div>
                           </div>
@@ -556,20 +557,20 @@ export default function Editor() {
             ) : (
               /* Submissions History tab */
               <div className="space-y-4 font-sans">
-                <h3 className="text-sm font-bold text-white">Your Past Submissions</h3>
+                <h3 className="font-display text-lg font-bold text-foreground">Past Evaluations</h3>
                 {submissionsLoading ? (
-                  <div className="flex items-center gap-2 text-neutral-500 text-xs py-4">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs py-4">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading submissions...
+                    Retrieving submissions...
                   </div>
                 ) : pastSubmissions.length === 0 ? (
-                  <p className="text-neutral-500 text-xs py-4">No submissions yet for this problem.</p>
+                  <p className="text-muted-foreground text-xs py-4">No submissions recorded yet for this challenge.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {pastSubmissions.map((sub) => (
                       <div
                         key={sub.id}
-                        className="flex items-center justify-between rounded-xl border border-border bg-[#141417] p-3 hover:border-neutral-700 transition-colors"
+                        className="flex items-center justify-between rounded-xl border border-border bg-secondary/30 p-3 hover:border-primary/40 transition-colors shadow-xs"
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -583,11 +584,11 @@ export default function Editor() {
                                 {sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
                               </span>
                             )}
-                            <span className="text-[10px] text-neutral-500 font-mono bg-neutral-900 border border-neutral-800 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-muted-foreground font-mono bg-secondary/80 border border-border px-1.5 py-0.5 rounded">
                               {sub.language}
                             </span>
                           </div>
-                          <p className="text-[10px] text-neutral-500 font-mono">
+                          <p className="text-[10px] text-muted-foreground font-mono">
                             {new Date(sub.createdAt).toLocaleString()}
                           </p>
                         </div>
@@ -606,16 +607,16 @@ export default function Editor() {
         {/* DRAGGABLE HORIZONTAL SPLIT DIVIDER */}
         <div
           onMouseDown={handleMouseDownH}
-          className="w-1.5 hover:w-2 hover:bg-primary/50 bg-border cursor-col-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+          className="w-1.5 hover:w-2 hover:bg-primary/40 bg-border cursor-col-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
         >
-          <div className="h-8 w-0.5 rounded-full bg-neutral-600 group-hover:bg-primary" />
+          <div className="h-8 w-0.5 rounded-full bg-border group-hover:bg-primary" />
         </div>
 
         {/* RIGHT PANE: Code Editor & Console Drawer with Vertical Split */}
         <div
           ref={rightPaneRef}
           style={{ width: `${100 - leftPanePercent}%` }}
-          className="flex flex-col bg-[#0f0f12] overflow-hidden relative"
+          className="flex flex-col bg-background overflow-hidden relative"
         >
           {/* Editor Area */}
           <div className="flex-1 p-2 overflow-hidden min-h-0">
@@ -634,9 +635,9 @@ export default function Editor() {
           {isConsoleOpen && (
             <div
               onMouseDown={handleMouseDownV}
-              className="h-1.5 hover:h-2 hover:bg-primary/50 bg-border cursor-row-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+              className="h-1.5 hover:h-2 hover:bg-primary/40 bg-border cursor-row-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
             >
-              <div className="w-8 h-0.5 rounded-full bg-neutral-600 group-hover:bg-primary" />
+              <div className="w-8 h-0.5 rounded-full bg-border group-hover:bg-primary" />
             </div>
           )}
 

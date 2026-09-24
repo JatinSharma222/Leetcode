@@ -39,7 +39,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f12] text-neutral-400 font-sans">
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground font-sans">
         <div className="flex items-center gap-3 text-sm">
           <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           Verifying session...

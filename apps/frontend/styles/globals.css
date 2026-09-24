@@ -1,73 +1,75 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Semantic status colors */
-  --pass: #22c55e;
-  --pass-foreground: #ffffff;
-  --fail: #ef4444;
-  --fail-foreground: #ffffff;
-  --pending: #f59e0b;
-  --pending-foreground: #ffffff;
+  /* Semantic status colors within warm luxury palette */
+  --pass: #8B7032;
+  --pass-foreground: #F6EDE3;
+  --fail: #7A120D;
+  --fail-foreground: #F6EDE3;
+  --pending: #9B6F30;
+  --pending-foreground: #F6EDE3;
 
   /* Difficulty colors */
-  --diff-easy: #00b8a3;
-  --diff-medium: #ffc01e;
-  --diff-hard: #ff375f;
+  --diff-easy: #7A6A32;
+  --diff-medium: #9E6B20;
+  --diff-hard: #5D0703;
 
-  /* Light Theme */
-  --radius: 0.5rem;
-  --background: #f7f8fa;
-  --foreground: #1a1a1e;
-  --card: #ffffff;
-  --card-foreground: #1a1a1e;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1e;
-  --primary: #ffa116;
-  --primary-foreground: #ffffff;
-  --circuit: #ffa116;
-  --circuit-foreground: #ffffff;
-  --secondary: #eff1f5;
-  --secondary-foreground: #2d3039;
-  --muted: #f0f2f5;
-  --muted-foreground: #6b7280;
-  --accent: #f5f6f9;
-  --accent-foreground: #1a1a1e;
-  --destructive: #ef4444;
-  --border: #e3e6eb;
-  --input: #e3e6eb;
-  --ring: #ffa116;
+  /* Light Theme — Cream Vanilla Atmosphere */
+  --radius: 0.625rem;
+  --background: #EEDCC8;
+  --foreground: #5D0703;
+  --card: #F5E8D8;
+  --card-foreground: #5D0703;
+  --popover: #F5E8D8;
+  --popover-foreground: #5D0703;
+  --primary: #5D0703;
+  --primary-foreground: #EEDCC8;
+  --circuit: #5D0703;
+  --circuit-foreground: #EEDCC8;
+  --secondary: #E3CDAF;
+  --secondary-foreground: #5D0703;
+  --muted: #E5D3BD;
+  --muted-foreground: #7C2A26;
+  --accent: #E2CEB7;
+  --accent-foreground: #5D0703;
+  --destructive: #7A120D;
+  --destructive-foreground: #EEDCC8;
+  --border: rgba(93, 7, 3, 0.16);
+  --input: rgba(93, 7, 3, 0.20);
+  --ring: #5D0703;
 }
 
 .dark {
-  /* Dark Theme — Deep Slate / Charcoal Aesthetic */
-  --background: #0f0f12;
-  --foreground: #f3f4f6;
-  --card: #18181c;
-  --card-foreground: #f3f4f6;
-  --popover: #18181c;
-  --popover-foreground: #f3f4f6;
-  --primary: #ffa116;
-  --primary-foreground: #ffffff;
-  --circuit: #ffa116;
-  --circuit-foreground: #ffffff;
-  --secondary: #222228;
-  --secondary-foreground: #e5e7eb;
-  --muted: #24242c;
-  --muted-foreground: #9ca3af;
-  --accent: #2a2a34;
-  --accent-foreground: #ffffff;
-  --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #ffa116;
+  /* Dark Theme — Deep Black Cherry / Burgundy Atmosphere */
+  --background: #5D0703;
+  --foreground: #EEDCC8;
+  --card: #4D0502;
+  --card-foreground: #EEDCC8;
+  --popover: #4D0502;
+  --popover-foreground: #EEDCC8;
+  --primary: #EEDCC8;
+  --primary-foreground: #5D0703;
+  --circuit: #EEDCC8;
+  --circuit-foreground: #5D0703;
+  --secondary: #6B0A06;
+  --secondary-foreground: #EEDCC8;
+  --muted: #4B0502;
+  --muted-foreground: #D8C2A8;
+  --accent: #6E0D08;
+  --accent-foreground: #EEDCC8;
+  --destructive: #8C1610;
+  --destructive-foreground: #EEDCC8;
+  --border: rgba(238, 220, 200, 0.18);
+  --input: rgba(238, 220, 200, 0.24);
+  --ring: #EEDCC8;
 }
 
 @theme {
@@ -127,7 +129,7 @@
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -140,9 +142,15 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(140, 145, 160, 0.25);
+  background: rgba(93, 7, 3, 0.2);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(140, 145, 160, 0.45);
+  background: rgba(93, 7, 3, 0.35);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(238, 220, 200, 0.2);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(238, 220, 200, 0.35);
 }

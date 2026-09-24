@@ -127,31 +127,31 @@ export default function ConsolePanel({
   const currentRunCase = runResult?.cases?.[selectedCaseIdx] || runResult?.cases?.[0];
 
   return (
-    <div className="flex flex-col border-t border-border bg-[#141417] text-neutral-200 font-sans select-none shrink-0">
+    <div className="flex flex-col border-t border-border bg-card text-foreground font-sans select-none shrink-0 shadow-[0_-2px_10px_rgba(93,7,3,0.04)]">
       {/* Top Toolbar / Header */}
-      <div className="flex h-10 items-center justify-between px-3 border-b border-border bg-[#18181c]">
+      <div className="flex h-10 items-center justify-between px-3 border-b border-border bg-secondary/40">
         {/* Left: Tab selectors */}
         <div className="flex items-center gap-1">
           <button
             onClick={onToggleOpen}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-neutral-300 hover:text-white rounded hover:bg-neutral-800 transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-foreground hover:text-primary rounded hover:bg-secondary/60 transition-colors cursor-pointer"
           >
-            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-neutral-400" /> : <ChevronUp className="h-3.5 w-3.5 text-neutral-400" />}
+            {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />}
             <Terminal className="h-3.5 w-3.5 text-primary" />
-            <span className="hidden sm:inline">Console</span>
+            <span className="hidden sm:inline font-mono text-[11px] uppercase tracking-wider">Console</span>
           </button>
 
-          <div className="h-4 w-px bg-neutral-800 mx-1" />
+          <div className="h-4 w-px bg-border mx-1" />
 
           <button
             onClick={() => {
               setActiveTab("testcase");
               if (!isOpen) onToggleOpen();
             }}
-            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
               activeTab === "testcase"
-                ? "bg-neutral-800 text-white font-semibold"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50"
+                ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Testcase
@@ -162,10 +162,10 @@ export default function ConsolePanel({
               setActiveTab("runResult");
               if (!isOpen) onToggleOpen();
             }}
-            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === "runResult"
-                ? "bg-neutral-800 text-white font-semibold"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50"
+                ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <span>Test Result</span>
@@ -180,10 +180,10 @@ export default function ConsolePanel({
                 setActiveTab("subResult");
                 if (!isOpen) onToggleOpen();
               }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "subResult"
-                  ? "bg-neutral-800 text-white font-semibold"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50"
+                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <span>Submission</span>
@@ -197,27 +197,28 @@ export default function ConsolePanel({
           {onRun && (
             <Button
               size="sm"
-              variant="outline"
+              variant="secondary"
               onClick={onRun}
               disabled={isRunning || isSubmitting}
-              className="h-7 px-3 text-xs font-medium border-border bg-secondary hover:bg-neutral-800 hover:text-white text-neutral-200 active:scale-[0.98]"
+              className="h-7 px-3 text-xs font-medium"
             >
-              <Play className={`mr-1.5 h-3 w-3 text-neutral-300 fill-current ${isRunning ? "animate-spin" : ""}`} />
+              <Play className={`mr-1.5 h-3 w-3 text-foreground fill-current ${isRunning ? "animate-spin" : ""}`} />
               {isRunning ? "Running..." : "Run"}
-              <span className="hidden md:inline ml-1.5 text-[10px] text-neutral-500 font-mono">⌘'</span>
+              <span className="hidden md:inline ml-1.5 text-[10px] text-muted-foreground font-mono">⌘'</span>
             </Button>
           )}
 
           {onSubmit && (
             <Button
               size="sm"
+              variant="default"
               onClick={onSubmit}
               disabled={isRunning || isSubmitting}
-              className="h-7 px-3.5 text-xs font-semibold bg-pass hover:bg-pass/90 text-white shadow-sm active:scale-[0.98]"
+              className="h-7 px-3.5 text-xs font-semibold"
             >
               <Send className="mr-1.5 h-3 w-3" />
               {isSubmitting ? "Evaluating..." : "Submit"}
-              <span className="hidden md:inline ml-1.5 text-[10px] text-emerald-100 font-mono">⌘↵</span>
+              <span className="hidden md:inline ml-1.5 text-[10px] text-primary-foreground/80 font-mono">⌘↵</span>
             </Button>
           )}
         </div>
@@ -235,10 +236,10 @@ export default function ConsolePanel({
                     <button
                       key={idx}
                       onClick={() => setSelectedCaseIdx(idx)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium font-mono transition-colors ${
+                      className={`px-3 py-1 rounded-md text-xs font-medium font-mono transition-all cursor-pointer ${
                         selectedCaseIdx === idx
-                          ? "bg-neutral-800 text-white border border-neutral-700 shadow-xs"
-                          : "bg-neutral-900/80 text-neutral-400 hover:text-neutral-200"
+                          ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                          : "bg-secondary/70 text-muted-foreground hover:text-foreground border border-border/50"
                       }`}
                     >
                       Case {idx + 1}
@@ -248,7 +249,7 @@ export default function ConsolePanel({
                   <button
                     onClick={handleAddCase}
                     title="Add custom test case"
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-neutral-400 hover:text-white bg-neutral-900/60 hover:bg-neutral-800 border border-neutral-800 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground bg-secondary/60 hover:bg-secondary border border-border transition-colors cursor-pointer"
                   >
                     <Plus className="h-3 w-3" />
                     <span className="font-sans text-[11px]">Add</span>
@@ -260,7 +261,7 @@ export default function ConsolePanel({
                     <button
                       onClick={handleResetInputs}
                       title="Reset to default sample test cases"
-                      className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition-colors"
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >
                       <RotateCcw className="h-3 w-3" />
                       Reset to sample
@@ -271,7 +272,7 @@ export default function ConsolePanel({
                     <button
                       onClick={() => handleRemoveCase(selectedCaseIdx)}
                       title="Remove current test case"
-                      className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-rose-400 transition-colors"
+                      className="flex items-center gap-1 text-[11px] text-fail/80 hover:text-fail transition-colors cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete Case
@@ -283,26 +284,26 @@ export default function ConsolePanel({
               {/* Input editing card */}
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                     Input (stdin)
                   </span>
-                  <span className="text-[10px] text-neutral-500">Editable for custom runs</span>
+                  <span className="text-[10px] text-muted-foreground/80">Editable for custom execution</span>
                 </div>
                 <textarea
                   value={effectiveInputs[selectedCaseIdx] ?? ""}
                   onChange={(e) => handleInputChange(selectedCaseIdx, e.target.value)}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-[#0f0f12] p-2.5 font-mono text-xs text-neutral-200 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20 resize-y"
+                  className="w-full rounded-lg border border-border bg-background/80 p-2.5 font-mono text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25 shadow-[inset_0_1px_2px_rgba(93,7,3,0.06)] resize-y"
                   placeholder="Enter custom input..."
                 />
               </div>
 
               {testCases[selectedCaseIdx]?.expectedOutput && (
                 <div className="space-y-1 pt-1">
-                  <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                     Expected Output (sample)
                   </span>
-                  <pre className="p-2.5 rounded-lg border border-border bg-[#0f0f12] text-pass font-mono text-xs overflow-x-auto">
+                  <pre className="p-2.5 rounded-lg border border-border bg-background/80 text-pass font-mono text-xs overflow-x-auto">
                     {testCases[selectedCaseIdx]?.expectedOutput}
                   </pre>
                 </div>
@@ -314,13 +315,13 @@ export default function ConsolePanel({
           {activeTab === "runResult" && (
             <div>
               {isRunning ? (
-                <div className="py-8 flex flex-col items-center justify-center gap-2 text-neutral-400 font-sans">
+                <div className="py-8 flex flex-col items-center justify-center gap-2 text-muted-foreground font-sans">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <span className="text-xs">Executing test cases in Docker sandbox...</span>
+                  <span className="text-xs">Executing test vectors in sandbox...</span>
                 </div>
               ) : !runResult ? (
-                <div className="py-8 text-center text-neutral-500 font-sans text-xs">
-                  Click <span className="font-semibold text-neutral-300">Run</span> (or press <kbd className="rounded bg-neutral-800 px-1 py-0.5 text-neutral-400">⌘'</kbd>) to test your solution.
+                <div className="py-8 text-center text-muted-foreground font-sans text-xs">
+                  Click <span className="font-semibold text-foreground">Run</span> (or press <kbd className="rounded bg-secondary border border-border px-1.5 py-0.5 text-foreground font-mono text-[10px]">⌘'</kbd>) to test your solution.
                 </div>
               ) : (
                 <div className="space-y-4 font-sans">
@@ -339,13 +340,13 @@ export default function ConsolePanel({
                         </div>
                       )}
 
-                      <span className="flex items-center gap-1 text-[11px] text-neutral-400 font-mono bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded-md">
-                        <Zap className="h-3 w-3 text-amber-400" />
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono bg-secondary/80 border border-border px-2 py-0.5 rounded-md">
+                        <Zap className="h-3 w-3 text-pending" />
                         {runResult.durationMs} ms
                       </span>
                     </div>
 
-                    <div className="text-xs text-neutral-400">
+                    <div className="text-xs text-muted-foreground font-mono">
                       {runResult.cases.filter((c) => c.passed).length} / {runResult.cases.length} cases passed
                     </div>
                   </div>
@@ -356,10 +357,10 @@ export default function ConsolePanel({
                       <button
                         key={idx}
                         onClick={() => setSelectedCaseIdx(idx)}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono transition-colors ${
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
                           selectedCaseIdx === idx
-                            ? "bg-neutral-800 text-white border border-neutral-700 font-semibold"
-                            : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"
+                            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                            : "bg-secondary/70 text-muted-foreground hover:text-foreground border border-border/50"
                         }`}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${c.passed ? "bg-pass" : "bg-fail"}`} />
@@ -373,45 +374,45 @@ export default function ConsolePanel({
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                             Input
                           </span>
                           <button
                             onClick={() => handleCopy(currentRunCase.input, "in")}
-                            className="text-[10px] text-neutral-500 hover:text-neutral-300"
+                            className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
                           >
                             {copiedField === "in" ? "Copied" : "Copy"}
                           </button>
                         </div>
-                        <pre className="p-2.5 rounded-lg border border-border bg-[#0f0f12] text-neutral-200 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                        <pre className="p-2.5 rounded-lg border border-border bg-background/80 text-foreground font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                           {currentRunCase.input}
                         </pre>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                             Your Output
                           </span>
                           <pre
                             className={`p-2.5 rounded-lg border font-mono text-xs overflow-x-auto whitespace-pre-wrap ${
                               currentRunCase.passed
-                                ? "border-pass/30 bg-pass/5 text-pass"
-                                : "border-fail/30 bg-fail/5 text-fail"
+                                ? "border-pass/30 bg-pass/10 text-pass"
+                                : "border-fail/30 bg-fail/10 text-fail"
                             }`}
                           >
                             {currentRunCase.actualOutput || (
-                              <span className="text-neutral-500 italic">&lt;no stdout output&gt;</span>
+                              <span className="text-muted-foreground/60 italic">&lt;no stdout output&gt;</span>
                             )}
                           </pre>
                         </div>
 
                         {currentRunCase.expectedOutput && (
                           <div className="space-y-1">
-                            <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                               Expected Output
                             </span>
-                            <pre className="p-2.5 rounded-lg border border-border bg-[#0f0f12] text-pass font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                            <pre className="p-2.5 rounded-lg border border-border bg-background/80 text-pass font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                               {currentRunCase.expectedOutput}
                             </pre>
                           </div>
@@ -420,10 +421,10 @@ export default function ConsolePanel({
 
                       {currentRunCase.error && (
                         <div className="space-y-1">
-                          <span className="text-[11px] font-medium text-fail uppercase tracking-wider">
-                            Error / Stderr
+                          <span className="text-[11px] font-medium text-fail uppercase tracking-wider font-mono">
+                            Stderr / Diagnostics
                           </span>
-                          <pre className="p-2.5 rounded-lg border border-fail/20 bg-fail/10 text-fail font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                          <pre className="p-2.5 rounded-lg border border-fail/30 bg-fail/10 text-fail font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                             {currentRunCase.error}
                           </pre>
                         </div>
@@ -439,13 +440,13 @@ export default function ConsolePanel({
           {activeTab === "subResult" && (
             <div>
               {isSubmitting ? (
-                <div className="py-8 flex flex-col items-center justify-center gap-2 text-neutral-400 font-sans">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-pass border-t-transparent" />
-                  <span className="text-xs">Evaluating against all test cases...</span>
+                <div className="py-8 flex flex-col items-center justify-center gap-2 text-muted-foreground font-sans">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-xs">Evaluating against all test vectors...</span>
                 </div>
               ) : !submissionResult ? (
-                <div className="py-8 text-center text-neutral-500 font-sans text-xs">
-                  Click <span className="font-semibold text-neutral-300">Submit</span> to submit your code for evaluation.
+                <div className="py-8 text-center text-muted-foreground font-sans text-xs">
+                  Click <span className="font-semibold text-foreground">Submit</span> to evaluate your solution.
                 </div>
               ) : (
                 <div className="space-y-4 font-sans">
@@ -477,17 +478,17 @@ export default function ConsolePanel({
 
                   {submissionResult.output && (
                     <div className="space-y-1 pt-1">
-                      <span className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider font-mono">
                         Program Output / Message
                       </span>
-                      <pre className="p-3 rounded-lg border border-border bg-[#0f0f12] text-neutral-200 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                      <pre className="p-3 rounded-lg border border-border bg-background/80 text-foreground font-mono text-xs overflow-x-auto whitespace-pre-wrap">
                         {submissionResult.output}
                       </pre>
                     </div>
                   )}
 
                   {pollTimedOut && (
-                    <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-300 text-xs">
+                    <div className="p-3 rounded-lg border border-pending/30 bg-pending/10 text-pending text-xs">
                       Server took longer than expected. Check the Submissions history page for final results.
                     </div>
                   )}

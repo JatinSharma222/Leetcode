@@ -8,16 +8,16 @@ export default function Auth() {
       className="relative min-h-screen overflow-hidden bg-background"
     >
       <div
-        className="pointer-events-none absolute inset-0 opacity-40 dark:opacity-15"
+        className="pointer-events-none absolute inset-0 opacity-25"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(128,128,128,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(128,128,128,0.1) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
+            "radial-gradient(rgba(93, 7, 3, 0.15) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
         }}
       />
 
-      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-circuit/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-pass/5 blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#5D0703]/15 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-[#8B7032]/10 blur-3xl" />
 
       {/* Content */}
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
