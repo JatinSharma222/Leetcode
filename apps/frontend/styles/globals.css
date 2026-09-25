@@ -1,75 +1,76 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Geist", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Semantic status colors within warm luxury palette */
-  --pass: #8B7032;
-  --pass-foreground: #F6EDE3;
-  --fail: #7A120D;
-  --fail-foreground: #F6EDE3;
-  --pending: #9B6F30;
-  --pending-foreground: #F6EDE3;
+  /* Obsidian Precision Core Surface Hierarchy */
+  --surface-base: #0B0B0F;
+  --surface-elevated: #13131A;
+  --surface-hover: #1C1C26;
+  --surface-container-lowest: #0E0E12;
+  --surface-container-low: #1B1B1F;
+  --surface-container: #1F1F23;
+  --surface-container-high: #2A292E;
+  --surface-container-highest: #353439;
 
-  /* Difficulty colors */
-  --diff-easy: #7A6A32;
-  --diff-medium: #9E6B20;
-  --diff-hard: #5D0703;
+  /* Brand Accents & State Colors */
+  --primary-container: #E11D48;
+  --on-primary-container: #FFFFFF;
+  --brand-wine-deep: #9E1B32;
+  --status-accepted: #10B981;
+  --status-warning: #F59E0B;
+  --status-error: #F43F5E;
+  --tertiary: #4EDEA3;
+  --tertiary-container: #00845A;
+  --secondary-accent: #FFB95F;
 
-  /* Light Theme — Cream Vanilla Atmosphere */
-  --radius: 0.625rem;
-  --background: #EEDCC8;
-  --foreground: #5D0703;
-  --card: #F5E8D8;
-  --card-foreground: #5D0703;
-  --popover: #F5E8D8;
-  --popover-foreground: #5D0703;
-  --primary: #5D0703;
-  --primary-foreground: #EEDCC8;
-  --circuit: #5D0703;
-  --circuit-foreground: #EEDCC8;
-  --secondary: #E3CDAF;
-  --secondary-foreground: #5D0703;
-  --muted: #E5D3BD;
-  --muted-foreground: #7C2A26;
-  --accent: #E2CEB7;
-  --accent-foreground: #5D0703;
-  --destructive: #7A120D;
-  --destructive-foreground: #EEDCC8;
-  --border: rgba(93, 7, 3, 0.16);
-  --input: rgba(93, 7, 3, 0.20);
-  --ring: #5D0703;
-}
+  /* Typography Colors */
+  --text-primary: #F9FAFB;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
 
-.dark {
-  /* Dark Theme — Deep Black Cherry / Burgundy Atmosphere */
-  --background: #5D0703;
-  --foreground: #EEDCC8;
-  --card: #4D0502;
-  --card-foreground: #EEDCC8;
-  --popover: #4D0502;
-  --popover-foreground: #EEDCC8;
-  --primary: #EEDCC8;
-  --primary-foreground: #5D0703;
-  --circuit: #EEDCC8;
-  --circuit-foreground: #5D0703;
-  --secondary: #6B0A06;
-  --secondary-foreground: #EEDCC8;
-  --muted: #4B0502;
-  --muted-foreground: #D8C2A8;
-  --accent: #6E0D08;
-  --accent-foreground: #EEDCC8;
-  --destructive: #8C1610;
-  --destructive-foreground: #EEDCC8;
-  --border: rgba(238, 220, 200, 0.18);
-  --input: rgba(238, 220, 200, 0.24);
-  --ring: #EEDCC8;
+  /* Borders & Highlights */
+  --border-hairline: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.14);
+
+  /* Semantic UI Tokens mapped to dark Obsidian Precision by default */
+  --radius: 0.5rem;
+  --background: #0B0B0F;
+  --foreground: #F9FAFB;
+  --card: #13131A;
+  --card-foreground: #F9FAFB;
+  --popover: #13131A;
+  --popover-foreground: #F9FAFB;
+  --primary: #E11D48;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1F1F23;
+  --secondary-foreground: #F9FAFB;
+  --muted: #1B1B1F;
+  --muted-foreground: #9CA3AF;
+  --accent: #1C1C26;
+  --accent-foreground: #F9FAFB;
+  --destructive: #F43F5E;
+  --destructive-foreground: #FFFFFF;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #E11D48;
+
+  --pass: #10B981;
+  --pass-foreground: #FFFFFF;
+  --fail: #F43F5E;
+  --fail-foreground: #FFFFFF;
+  --pending: #F59E0B;
+  --pending-foreground: #FFFFFF;
+
+  --diff-easy: #10B981;
+  --diff-medium: #F59E0B;
+  --diff-hard: #F43F5E;
 }
 
 @theme {
@@ -79,6 +80,32 @@
 }
 
 @theme inline {
+  --color-surface-base: var(--surface-base);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-brand-wine-deep: var(--brand-wine-deep);
+
+  --color-status-accepted: var(--status-accepted);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-border-hairline: var(--border-hairline);
+  --color-border-subtle: var(--border-subtle);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -98,8 +125,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --color-circuit: var(--circuit);
-  --color-circuit-foreground: var(--circuit-foreground);
   --color-pass: var(--pass);
   --color-pass-foreground: var(--pass-foreground);
   --color-fail: var(--fail);
@@ -121,36 +146,47 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    @apply bg-surface-base text-text-primary;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  h1, h2, h3, h4 {
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Custom minimal scrollbar */
+/* Material symbols outlined helper */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom sleek dark scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(93, 7, 3, 0.2);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(93, 7, 3, 0.35);
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: rgba(238, 220, 200, 0.2);
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(238, 220, 200, 0.35);
+  background: rgba(255, 255, 255, 0.22);
 }

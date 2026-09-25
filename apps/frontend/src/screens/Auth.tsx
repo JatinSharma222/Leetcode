@@ -1,29 +1,24 @@
+import React from "react";
 import AuthBanner from "@/components/ui/AuthBanner";
 import AuthCredentials from "@/components/ui/AuthCredentials";
 
 export default function Auth() {
   return (
-    <main
-      id="auth-page"
-      className="relative min-h-screen overflow-hidden bg-background"
-    >
-      <div
-        className="pointer-events-none absolute inset-0 opacity-25"
-        style={{
-          backgroundImage:
-            "radial-gradient(rgba(93, 7, 3, 0.15) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
+    <main className="w-full bg-surface-base min-h-screen flex flex-col justify-center font-sans">
+      <div className="relative w-full min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 overflow-hidden">
+        {/* Ambient Luminous Mesh Accents */}
+        <div className="absolute -top-32 -left-20 w-[540px] h-[540px] bg-primary-container/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute -bottom-36 -right-24 w-[480px] h-[480px] bg-brand-wine-deep/20 rounded-full blur-[160px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[720px] bg-surface-container-lowest/70 pointer-events-none -z-10" />
 
-      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#5D0703]/15 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-[#8B7032]/10 blur-3xl" />
-
-      {/* Content */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="grid w-full max-w-5xl grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
-          <AuthBanner />
-          <AuthCredentials />
+        {/* Main 50/50 Split Frame */}
+        <div className="relative w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch my-auto">
+          <div className="lg:col-span-6 flex flex-col">
+            <AuthBanner />
+          </div>
+          <div className="lg:col-span-6 flex flex-col justify-center">
+            <AuthCredentials />
+          </div>
         </div>
       </div>
     </main>
