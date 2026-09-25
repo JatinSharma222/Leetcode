@@ -33,3 +33,6 @@ Thumbs.db
 # worker code-exec scratch files
 apps/worker/code/*
 !apps/worker/code/.gitkeep
+
+# design assets and mockups
+design/
