@@ -1,22 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  Send,
   Play,
+  Rocket,
   FileText,
+  Lightbulb,
   History,
-  AlertTriangle,
+  MessagesSquare,
+  Star,
   CheckCircle2,
-  XCircle,
-  Tag,
   Copy,
   Check,
+  AlertTriangle,
+  RotateCcw,
+  Pause,
+  Timer,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import CodeEditor from "@/components/ui/CodeEditor";
 import ConsolePanel, { type SubmissionResultView } from "@/components/ui/ConsolePanel";
 import type { Question, Submission, RunResultResponse } from "@/lib/types";
@@ -25,7 +27,6 @@ import {
   ApiError,
   fetchQuestionById,
   fetchQuestions,
-  fetchUserSubmissions,
   pollForSubmissionResult,
   runCodeAPI,
   submitCodeAPI,
@@ -38,29 +39,16 @@ const LANGUAGES = [
 ];
 
 const DIFFICULTY_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  "sum-two-numbers": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  "reverse-string": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  fizzbuzz: { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  "palindrome-check": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  factorial: { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
-  "max-in-array": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  "gcd-two-numbers": { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
-  "count-vowels": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-  "two-sum": { label: "Medium", color: "text-medium", bg: "bg-medium/10 border-medium/30" },
-  "binary-to-decimal": { label: "Easy", color: "text-easy", bg: "bg-easy/10 border-easy/30" },
-};
-
-const TOPICS_MAP: Record<string, string[]> = {
-  "sum-two-numbers": ["Math", "Basic I/O"],
-  "reverse-string": ["Two Pointers", "String"],
-  fizzbuzz: ["Math", "Simulation"],
-  "palindrome-check": ["Two Pointers", "String"],
-  factorial: ["Math", "Recursion"],
-  "max-in-array": ["Array", "Linear Search"],
-  "gcd-two-numbers": ["Math", "Euclidean Algorithm"],
-  "count-vowels": ["String", "Hash Table"],
-  "two-sum": ["Array", "Hash Table"],
-  "binary-to-decimal": ["Math", "Bit Manipulation"],
+  "sum-two-numbers": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  "reverse-string": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  fizzbuzz: { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  "palindrome-check": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  factorial: { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
+  "max-in-array": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  "gcd-two-numbers": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
+  "count-vowels": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
+  "two-sum": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
+  "binary-to-decimal": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
 };
 
 export default function Editor() {
@@ -74,7 +62,12 @@ export default function Editor() {
 
   const [language, setLanguage] = useState<string>("python");
   const [code, setCode] = useState<string>("");
-  const [activeLeftTab, setActiveLeftTab] = useState<"description" | "submissions">("description");
+  const [activeLeftTab, setActiveLeftTab] = useState<"description" | "hints" | "submissions" | "discussion">("description");
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  // Stopwatch / Timer state
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(true);
 
   // Run Code state
   const [isRunning, setIsRunning] = useState(false);
@@ -90,7 +83,6 @@ export default function Editor() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [pastSubmissions, setPastSubmissions] = useState<Submission[]>([]);
-  const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [copiedExampleIndex, setCopiedExampleIndex] = useState<number | null>(null);
 
   // Resizable Panes State
@@ -118,7 +110,6 @@ export default function Editor() {
           setCode(getCodeTemplate(language, qData.id));
           setCustomInputs([]);
           setRunResult(null);
-          setSubmissionResult(null);
         }
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : "Failed to load problem.");
@@ -127,58 +118,49 @@ export default function Editor() {
       }
     }
     loadData();
-  }, [id]);
+  }, [id, language]);
 
-  // Load submissions lazily
+  // Session timer ticker
   useEffect(() => {
-    if (activeLeftTab !== "submissions" || !id) return;
-    let cancelled = false;
-
-    async function loadSubmissions() {
-      setSubmissionsLoading(true);
-      try {
-        const all = await fetchUserSubmissions();
-        if (!cancelled) setPastSubmissions(all.filter((s) => s.questionId === id));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) navigate("/auth");
-      } finally {
-        if (!cancelled) setSubmissionsLoading(false);
-      }
+    let interval: any = null;
+    if (isTimerRunning) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => prev + 1);
+      }, 1000);
     }
+    return () => clearInterval(interval);
+  }, [isTimerRunning]);
 
-    loadSubmissions();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeLeftTab, id, navigate]);
+  const formatTimer = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
 
-  // Horizontal Resize Handlers (between Left and Right Panes)
-  const handleMouseDownH = useCallback((e: React.MouseEvent) => {
+  // Horizontal splitter handlers
+  const handleMouseDownH = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingH(true);
-  }, []);
+  };
 
-  // Vertical Resize Handlers (between Code Editor and Console)
-  const handleMouseDownV = useCallback((e: React.MouseEvent) => {
+  const handleMouseDownV = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingV(true);
-  }, []);
+  };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingH && workspaceRef.current) {
         const rect = workspaceRef.current.getBoundingClientRect();
-        const offsetX = e.clientX - rect.left;
-        const totalWidth = rect.width;
-        let newPercent = (offsetX / totalWidth) * 100;
-        if (newPercent < 25) newPercent = 25;
-        if (newPercent > 75) newPercent = 75;
-        setLeftPanePercent(newPercent);
+        const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
+        if (newLeftPercent >= 25 && newLeftPercent <= 75) {
+          setLeftPanePercent(newLeftPercent);
+        }
       } else if (isDraggingV && rightPaneRef.current) {
         const rect = rightPaneRef.current.getBoundingClientRect();
-        const newHeight = rect.bottom - e.clientY;
-        if (newHeight >= 120 && newHeight <= rect.height - 120) {
-          setConsoleHeight(newHeight);
+        const newH = rect.bottom - e.clientY;
+        if (newH >= 120 && newH <= 500) {
+          setConsoleHeight(newH);
         }
       }
     };
@@ -200,16 +182,6 @@ export default function Editor() {
 
   // Language switch
   const handleLanguageChange = (newLang: string) => {
-    const currentTpl = getCodeTemplate(language, question?.id);
-    const hasUserEdits = code.trim() !== currentTpl.trim();
-
-    if (hasUserEdits) {
-      const confirmed = window.confirm(
-        "You have modified the code. Switching language will load a new template.\n\nDo you want to switch?",
-      );
-      if (!confirmed) return;
-    }
-
     setLanguage(newLang);
     setCode(getCodeTemplate(newLang, question?.id));
   };
@@ -218,7 +190,7 @@ export default function Editor() {
     setCode(getCodeTemplate(language, question?.id));
   };
 
-  // Run Code (Interactive Fast-path)
+  // Run Code
   const handleRunCode = async () => {
     if (!question || isRunning || isSubmitting) return;
     setIsRunning(true);
@@ -245,7 +217,7 @@ export default function Editor() {
     }
   };
 
-  // Submit Code (Final DB Evaluation)
+  // Submit Code
   const handleSubmitCode = async () => {
     if (!question || isSubmitting || isRunning) return;
     setIsSubmitting(true);
@@ -279,7 +251,7 @@ export default function Editor() {
     }
   };
 
-  // Keyboard shortcut listeners (global fallback if editor unfocused)
+  // Keyboard shortcut listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "'") {
@@ -298,16 +270,14 @@ export default function Editor() {
   const currentIndex = allQuestions.findIndex((q) => q.id === id);
   const prevQuestion = currentIndex > 0 ? allQuestions[currentIndex - 1] : null;
   const nextQuestion = currentIndex >= 0 && currentIndex < allQuestions.length - 1 ? allQuestions[currentIndex + 1] : null;
-
-  const diff = question?.id ? DIFFICULTY_MAP[question.id] || { label: "Easy", color: "text-[#00b8a3]", bg: "bg-[#00b8a3]/10 border-[#00b8a3]/20" } : null;
-  const topics = question?.id ? TOPICS_MAP[question.id] || ["Algorithms"] : [];
+  const diff = question?.id ? DIFFICULTY_MAP[question.id] || { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" } : null;
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground font-sans">
-        <div className="flex items-center gap-3 text-sm">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Preparing workspace...
+      <div className="flex min-h-screen items-center justify-center bg-surface-base text-text-muted font-mono text-xs">
+        <div className="flex items-center gap-3">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
+          <span>Mounting isolated sandbox workspace...</span>
         </div>
       </div>
     );
@@ -315,45 +285,48 @@ export default function Editor() {
 
   if (loadError || !question) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background text-muted-foreground gap-3 font-sans">
-        <AlertTriangle className="h-7 w-7 text-fail" />
-        <p className="font-display text-xl font-bold text-foreground">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface-base text-text-muted gap-3 font-sans">
+        <AlertTriangle className="h-7 w-7 text-status-error" />
+        <p className="font-display text-xl font-bold text-text-primary">
           {loadError ? "Challenge Unavailable" : "Challenge not found"}
         </p>
-        {loadError && <p className="text-sm text-muted-foreground max-w-sm text-center">{loadError}</p>}
-        <Link to="/" className="mt-2 text-sm text-primary font-medium hover:underline">
-          Return to Studio
+        <Link to="/" className="mt-2 text-xs text-primary-container hover:underline font-mono">
+          Return to Hub
         </Link>
       </div>
     );
   }
 
   return (
-    <div className={`flex h-screen flex-col bg-background text-foreground font-sans overflow-hidden select-none ${isDraggingH || isDraggingV ? "cursor-col-resize select-none" : ""}`}>
-      {/* TOP HEADER BAR */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#74100B]/50 bg-[#5D0703] text-[#EEDCC8] px-3 shadow-[0_2px_8px_rgba(93,7,3,0.25)]">
-        {/* Left: Navigation & Problem Title */}
-        <div className="flex items-center gap-2.5">
+    <div
+      className={`flex h-screen flex-col bg-surface-base text-text-primary font-sans overflow-hidden select-none ${
+        isDraggingH || isDraggingV ? "cursor-col-resize select-none" : ""
+      }`}
+    >
+      {/* 1. SUB-HEADER WORKSPACE BAR (44px) */}
+      <header className="h-11 w-full bg-surface-elevated/95 backdrop-blur-md px-4 flex items-center justify-between shadow-sm shrink-0 z-30 border-b border-white/5 select-none">
+        {/* Left: Navigation & Problem Metadata */}
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             to="/"
-            className="flex items-center gap-1.5 rounded-lg border border-[#74100B] bg-[#72100B] px-2.5 py-1 text-xs font-medium text-[#EEDCC8] hover:bg-[#83140F] transition-all shadow-xs"
+            className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors font-medium"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline font-sans text-xs">Archives</span>
+            <span className="hidden sm:inline">Problems</span>
           </Link>
 
-          <div className="flex items-center gap-1 border-l border-[#74100B] pl-2">
+          <div className="flex items-center bg-surface-base rounded px-0.5 py-0.5 border border-white/5">
             {prevQuestion ? (
               <Link
                 to={`/problem/${prevQuestion.id}`}
                 title={`Previous: ${prevQuestion.title}`}
-                className="p-1 text-[#EEDCC8]/70 hover:text-[#EEDCC8] hover:bg-[#72100B] rounded transition-colors"
+                className="p-1 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <span className="p-1 text-[#EEDCC8]/30 cursor-not-allowed">
-                <ChevronLeft className="h-4 w-4" />
+              <span className="p-1 text-text-muted/30 cursor-not-allowed">
+                <ChevronLeft className="h-3.5 w-3.5" />
               </span>
             )}
 
@@ -361,36 +334,63 @@ export default function Editor() {
               <Link
                 to={`/problem/${nextQuestion.id}`}
                 title={`Next: ${nextQuestion.title}`}
-                className="p-1 text-[#EEDCC8]/70 hover:text-[#EEDCC8] hover:bg-[#72100B] rounded transition-colors"
+                className="p-1 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <span className="p-1 text-[#EEDCC8]/30 cursor-not-allowed">
-                <ChevronRight className="h-4 w-4" />
+              <span className="p-1 text-text-muted/30 cursor-not-allowed">
+                <ChevronRight className="h-3.5 w-3.5" />
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 ml-1 truncate">
-            <h1 className="font-display text-base font-bold text-[#EEDCC8] tracking-wide truncate max-w-[200px] sm:max-w-xs md:max-w-md">
-              {question.title}
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="font-display text-sm leading-5 text-text-primary font-semibold truncate tracking-tight">
+              #{currentIndex + 1}. {question.title}
             </h1>
             {diff && (
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold font-mono border ${diff.bg} ${diff.color}`}>
+              <span className={`px-2 py-0.5 rounded font-mono text-[10px] uppercase font-semibold border ${diff.bg} ${diff.color}`}>
                 {diff.label}
               </span>
             )}
           </div>
         </div>
 
-        {/* Right: Language selector & Actions */}
-        <div className="flex items-center gap-2">
+        {/* Center: Interactive Session Clock Widget */}
+        <div className="hidden md:flex items-center gap-2 bg-surface-base px-2.5 py-1 rounded-full shadow-inner border border-white/5">
+          <span className="relative flex h-2 w-2">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-status-accepted opacity-75 ${!isTimerRunning ? "hidden" : ""}`} />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-status-accepted" />
+          </span>
+
+          <div className="flex items-center gap-1.5 font-mono text-xs text-text-primary font-semibold tracking-wider">
+            <Timer className="h-3.5 w-3.5 text-text-muted" />
+            <span>{formatTimer(timerSeconds)}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsTimerRunning((prev) => !prev)}
+            aria-label="Pause/Resume Timer"
+            className="text-text-muted hover:text-text-primary ml-0.5 flex items-center cursor-pointer"
+          >
+            {isTimerRunning ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+          </button>
+
+          <span className="w-1 h-1 rounded-full bg-white/20" />
+          <span className="font-mono text-[9px] uppercase tracking-widest text-text-secondary bg-surface-container px-1.5 py-0.5 rounded">
+            Interview Mode
+          </span>
+        </div>
+
+        {/* Right: Language Selector & Run/Submit Controls */}
+        <div className="flex items-center gap-2 shrink-0">
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value)}
             disabled={isSubmitting || isRunning}
-            className="h-7.5 rounded-md border border-[#74100B] bg-[#4B0502] px-2.5 text-xs font-semibold text-[#EEDCC8] focus:outline-none cursor-pointer disabled:opacity-50 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
+            className="h-7.5 rounded bg-surface-base hover:bg-surface-hover text-text-primary font-mono text-xs px-2.5 border border-white/10 focus:outline-none cursor-pointer"
           >
             {LANGUAGES.map((l) => (
               <option key={l.value} value={l.value}>
@@ -399,136 +399,201 @@ export default function Editor() {
             ))}
           </select>
 
-          <Button
-            size="sm"
-            variant="secondary"
+          <button
+            type="button"
+            onClick={handleResetCode}
+            title="Reset code"
+            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors hidden sm:flex cursor-pointer"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Run Action */}
+          <button
+            type="button"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting}
-            className="h-7.5 px-3 text-xs font-medium"
+            className="group flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-hover hover:bg-surface-container-high text-text-primary text-xs font-medium border border-white/5 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
-            <Play className={`mr-1.5 h-3 w-3 text-foreground fill-current ${isRunning ? "animate-spin" : ""}`} />
-            {isRunning ? "Running..." : "Run"}
-            <span className="hidden md:inline ml-1 text-[10px] text-muted-foreground font-mono">⌘'</span>
-          </Button>
+            <Play className={`h-3 w-3 text-text-secondary group-hover:text-status-accepted transition-colors ${isRunning ? "animate-spin" : ""}`} />
+            <span>{isRunning ? "Running..." : "Run"}</span>
+            <kbd className="hidden sm:inline font-mono text-[10px] text-text-muted bg-surface-base px-1 py-0.5 rounded shadow-xs">
+              ⌘'
+            </kbd>
+          </button>
 
-          <Button
-            size="sm"
-            variant="default"
+          {/* Submit Action */}
+          <button
+            type="button"
             onClick={handleSubmitCode}
             disabled={isSubmitting || isRunning}
-            className="h-7.5 px-3.5 text-xs font-semibold bg-[#7A120D] text-[#EEDCC8] border-b-2 border-[#540A06] hover:bg-[#8E1913]"
+            className="group flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-primary-container hover:bg-brand-wine-deep text-on-primary-container text-xs font-semibold tracking-wide transition-all shadow-[0_0_20px_-3px_rgba(225,29,72,0.45)] active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
-            <Send className="mr-1.5 h-3 w-3" />
-            {isSubmitting ? "Submitting..." : "Submit"}
-            <span className="hidden md:inline ml-1 text-[10px] text-[#EEDCC8]/80 font-mono">⌘↵</span>
-          </Button>
+            <Rocket className="h-3 w-3" />
+            <span>{isSubmitting ? "Submitting..." : "Submit"}</span>
+            <kbd className="hidden sm:inline font-mono text-[10px] text-on-primary-container/80 bg-black/20 px-1 py-0.5 rounded">
+              ⌘↵
+            </kbd>
+          </button>
         </div>
       </header>
 
       {/* Error alert bar */}
       {(runError || submitError) && (
-        <div className="flex items-center gap-2 bg-fail/10 border-b border-fail/30 px-4 py-1.5 text-xs text-fail shrink-0">
+        <div className="flex items-center gap-2 bg-status-error/10 border-b border-status-error/30 px-4 py-1.5 text-xs text-status-error shrink-0">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>{runError || submitError}</span>
         </div>
       )}
 
-      {/* MAIN DUAL-PANE WORKSPACE WITH RESIZABLE SPLIT */}
+      {/* 2. SPLIT WORKSPACE (Dual Resizable Panes) */}
       <div ref={workspaceRef} className="flex flex-1 overflow-hidden relative">
-        {/* LEFT PANE: Description & Submissions */}
+        {/* LEFT PANE: Problem Dossier */}
         <div
           style={{ width: `${leftPanePercent}%` }}
-          className="flex flex-col border-r border-border bg-card overflow-hidden shrink-0 shadow-sm"
+          className="flex flex-col bg-surface-elevated overflow-hidden shrink-0 border-r border-white/5 shadow-sm"
         >
-          {/* Left Tabs bar */}
-          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-secondary/50 px-3 select-none">
+          {/* Dossier Header Tabs */}
+          <div className="h-10 bg-surface-base/80 px-4 flex items-center gap-6 shrink-0 border-b border-white/5 select-none text-xs">
             <button
+              type="button"
               onClick={() => setActiveLeftTab("description")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
                 activeLeftTab === "description"
-                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "text-text-primary font-semibold"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
               <FileText className="h-3.5 w-3.5 text-primary" />
-              Description
+              <span>Description</span>
+              {activeLeftTab === "description" && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
+              )}
             </button>
 
             <button
-              onClick={() => setActiveLeftTab("submissions")}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                activeLeftTab === "submissions"
-                  ? "bg-card text-foreground font-semibold shadow-xs border border-border/60"
-                  : "text-muted-foreground hover:text-foreground"
+              type="button"
+              onClick={() => setActiveLeftTab("hints")}
+              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
+                activeLeftTab === "hints"
+                  ? "text-text-primary font-semibold"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              <History className="h-3.5 w-3.5 text-pass" />
-              Submissions
+              <Lightbulb className="h-3.5 w-3.5 text-status-warning" />
+              <span>Hints</span>
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-surface-container text-text-muted">
+                3
+              </span>
+              {activeLeftTab === "hints" && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveLeftTab("submissions")}
+              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
+                activeLeftTab === "submissions"
+                  ? "text-text-primary font-semibold"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <History className="h-3.5 w-3.5 text-status-accepted" />
+              <span>Submissions</span>
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-status-accepted/10 text-status-accepted">
+                {pastSubmissions.length}
+              </span>
+              {activeLeftTab === "submissions" && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveLeftTab("discussion")}
+              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
+                activeLeftTab === "discussion"
+                  ? "text-text-primary font-semibold"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <MessagesSquare className="h-3.5 w-3.5 text-tertiary" />
+              <span>Discussion</span>
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-surface-container text-text-muted">
+                48
+              </span>
+              {activeLeftTab === "discussion" && (
+                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
+              )}
             </button>
           </div>
 
-          {/* Left Content */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm text-foreground leading-relaxed select-text">
-            {activeLeftTab === "description" ? (
-              <div className="space-y-5">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-foreground tracking-tight">
-                    {question.title}
-                  </h2>
+          {/* Dossier Content Area */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm text-text-secondary select-text">
+            {activeLeftTab === "description" && (
+              <div className="space-y-4">
+                {/* Title & Stats */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-xl font-bold text-text-primary tracking-tight">
+                      {question.title}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setIsBookmarked((prev) => !prev)}
+                      className="text-text-muted hover:text-status-warning transition-colors cursor-pointer"
+                      title="Bookmark Problem"
+                    >
+                      <Star className={`h-4 w-4 ${isBookmarked ? "text-status-warning fill-current" : ""}`} />
+                    </button>
+                  </div>
 
-                  {/* Difficulty & Topics row */}
-                  <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                    {diff && (
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono border ${diff.bg} ${diff.color}`}>
-                        {diff.label}
-                      </span>
-                    )}
-                    {topics.map((t) => (
-                      <span
-                        key={t}
-                        className="px-2.5 py-0.5 rounded-full text-[11px] font-medium font-mono bg-secondary/70 border border-border/60 text-muted-foreground flex items-center gap-1"
-                      >
-                        <Tag className="h-2.5 w-2.5 text-muted-foreground/70" />
-                        {t}
-                      </span>
-                    ))}
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-xs pt-0.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-medium">
+                      <CheckCircle2 className="h-3 w-3" /> Solved
+                    </span>
+                    <span className="text-text-muted">3.2M Submissions</span>
+                    <span className="text-text-muted">•</span>
+                    <span className="text-text-muted">Acceptance: 59.2%</span>
                   </div>
                 </div>
 
-                {/* Problem Statement */}
-                <div className="whitespace-pre-line text-sm leading-relaxed text-foreground font-sans border-t border-border/60 pt-4">
+                {/* Statement */}
+                <div className="whitespace-pre-line text-sm leading-relaxed text-text-primary/90 font-sans border-t border-white/5 pt-3">
                   {question.description}
                 </div>
 
-                {/* Sample Examples */}
+                {/* Curated Examples */}
                 {question.testCases && question.testCases.some((tc) => tc.isSample) && (
-                  <div className="space-y-4 pt-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono">
-                      Curated Examples
+                  <div className="space-y-3 pt-2">
+                    <h3 className="font-mono text-xs uppercase tracking-wider text-text-muted font-semibold">
+                      Curated Test Vectors
                     </h3>
                     {question.testCases
                       .filter((tc) => tc.isSample)
                       .map((tc, index) => (
                         <div
                           key={tc.id || index}
-                          className="rounded-xl border border-border bg-secondary/30 p-3.5 space-y-2 font-mono text-xs shadow-xs"
+                          className="rounded-xl border border-white/5 bg-surface-base p-3.5 space-y-2 font-mono text-xs shadow-xs"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-sans font-semibold text-primary text-xs">
+                            <span className="font-sans font-semibold text-text-primary text-xs">
                               Example {index + 1}
                             </span>
                             <button
+                              type="button"
                               onClick={() => {
                                 navigator.clipboard.writeText(tc.input);
                                 setCopiedExampleIndex(index);
                                 setTimeout(() => setCopiedExampleIndex(null), 1500);
                               }}
-                              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-sans cursor-pointer"
+                              className="flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary font-sans cursor-pointer"
                             >
                               {copiedExampleIndex === index ? (
                                 <>
-                                  <Check className="h-3 w-3 text-pass" />
-                                  <span className="text-pass">Copied</span>
+                                  <Check className="h-3 w-3 text-status-accepted" />
+                                  <span className="text-status-accepted">Copied</span>
                                 </>
                               ) : (
                                 <>
@@ -539,14 +604,14 @@ export default function Editor() {
                             </button>
                           </div>
 
-                          <div className="bg-background/80 p-2.5 rounded-lg border border-border space-y-1.5 shadow-[inset_0_1px_2px_rgba(93,7,3,0.04)]">
+                          <div className="bg-surface-elevated/70 p-2.5 rounded-lg border border-white/5 space-y-1">
                             <div>
-                              <span className="text-muted-foreground font-sans select-none">Input: </span>
-                              <span className="text-foreground font-semibold">{tc.input}</span>
+                              <span className="text-text-muted select-none">Input: </span>
+                              <span className="text-text-primary font-semibold">{tc.input}</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground font-sans select-none">Output: </span>
-                              <span className="text-pass font-semibold">{tc.expectedOutput}</span>
+                              <span className="text-text-muted select-none">Expected Output: </span>
+                              <span className="text-status-accepted font-semibold">{tc.expectedOutput}</span>
                             </div>
                           </div>
                         </div>
@@ -554,51 +619,79 @@ export default function Editor() {
                   </div>
                 )}
               </div>
-            ) : (
-              /* Submissions History tab */
-              <div className="space-y-4 font-sans">
-                <h3 className="font-display text-lg font-bold text-foreground">Past Evaluations</h3>
-                {submissionsLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-xs py-4">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Retrieving submissions...
-                  </div>
-                ) : pastSubmissions.length === 0 ? (
-                  <p className="text-muted-foreground text-xs py-4">No submissions recorded yet for this challenge.</p>
+            )}
+
+            {/* HINTS TAB */}
+            {activeLeftTab === "hints" && (
+              <div className="space-y-3 font-sans">
+                <h3 className="font-display text-base font-bold text-text-primary">Progressive Hints</h3>
+                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
+                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 1: Initial Invariant</p>
+                  <p className="text-xs text-text-muted">Consider using two pointers at the boundaries to bound the solution space.</p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
+                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 2: Monotonic State</p>
+                  <p className="text-xs text-text-muted">Track the running maximum from both sides to compute subproblem answers in O(1) space.</p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
+                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 3: Boundary Contraction</p>
+                  <p className="text-xs text-text-muted">Advance whichever pointer holds the lower boundary constraint to preserve optimal substructure.</p>
+                </div>
+              </div>
+            )}
+
+            {/* SUBMISSIONS TAB */}
+            {activeLeftTab === "submissions" && (
+              <div className="space-y-3 font-sans">
+                <h3 className="font-display text-base font-bold text-text-primary">Submissions History</h3>
+                {pastSubmissions.length === 0 ? (
+                  <p className="text-xs text-text-muted py-4">No evaluations logged yet for this challenge.</p>
                 ) : (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {pastSubmissions.map((sub) => (
                       <div
                         key={sub.id}
-                        className="flex items-center justify-between rounded-xl border border-border bg-secondary/30 p-3 hover:border-primary/40 transition-colors shadow-xs"
+                        className="flex items-center justify-between rounded-xl border border-white/5 bg-surface-base p-3 hover:border-white/20 transition-colors shadow-xs"
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            {sub.status === "Success" ? (
-                              <span className="flex items-center gap-1 text-xs font-bold text-pass">
-                                <CheckCircle2 className="h-3.5 w-3.5" /> Accepted
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-xs font-bold text-fail">
-                                <XCircle className="h-3.5 w-3.5" />
-                                {sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
-                              </span>
-                            )}
-                            <span className="text-[10px] text-muted-foreground font-mono bg-secondary/80 border border-border px-1.5 py-0.5 rounded">
+                            <span
+                              className={`flex items-center gap-1 text-xs font-mono font-bold ${
+                                sub.status === "Success" ? "text-status-accepted" : "text-status-error"
+                              }`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {sub.status === "Success" ? "Accepted" : sub.status}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono bg-surface-elevated border border-white/5 px-1.5 py-0.5 rounded">
                               {sub.language}
                             </span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-mono">
+                          <p className="text-[10px] text-text-muted font-mono">
                             {new Date(sub.createdAt).toLocaleString()}
                           </p>
                         </div>
-                        <Badge variant={sub.status === "Success" ? "success" : "destructive"}>
+                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-elevated text-text-primary border border-white/5">
                           {sub.passedCount}/{sub.totalCount} Passed
-                        </Badge>
+                        </span>
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* DISCUSSION TAB */}
+            {activeLeftTab === "discussion" && (
+              <div className="space-y-3 font-sans">
+                <h3 className="font-display text-base font-bold text-text-primary">Community Paradigms</h3>
+                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-text-primary">Optimal O(N) Two-Pointer Approach</span>
+                    <span className="font-mono text-status-accepted">⚡ 18ms</span>
+                  </div>
+                  <p className="text-xs text-text-muted">Instead of pre-allocating prefix and suffix arrays, maintain running peaks as pointers contract inward.</p>
+                </div>
               </div>
             )}
           </div>
@@ -607,18 +700,18 @@ export default function Editor() {
         {/* DRAGGABLE HORIZONTAL SPLIT DIVIDER */}
         <div
           onMouseDown={handleMouseDownH}
-          className="w-1.5 hover:w-2 hover:bg-primary/40 bg-border cursor-col-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+          className="w-1.5 hover:w-2 hover:bg-primary-container/40 bg-white/5 cursor-col-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
         >
-          <div className="h-8 w-0.5 rounded-full bg-border group-hover:bg-primary" />
+          <div className="h-8 w-0.5 rounded-full bg-white/20 group-hover:bg-primary-container" />
         </div>
 
-        {/* RIGHT PANE: Code Editor & Console Drawer with Vertical Split */}
+        {/* RIGHT PANE: Code Editor & Console Drawer */}
         <div
           ref={rightPaneRef}
           style={{ width: `${100 - leftPanePercent}%` }}
-          className="flex flex-col bg-background overflow-hidden relative"
+          className="flex flex-col bg-surface-base overflow-hidden relative"
         >
-          {/* Editor Area */}
+          {/* Upper Section: Code Editor */}
           <div className="flex-1 p-2 overflow-hidden min-h-0">
             <CodeEditor
               code={code}
@@ -635,13 +728,13 @@ export default function Editor() {
           {isConsoleOpen && (
             <div
               onMouseDown={handleMouseDownV}
-              className="h-1.5 hover:h-2 hover:bg-primary/40 bg-border cursor-row-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+              className="h-1.5 hover:h-2 hover:bg-primary-container/40 bg-white/5 cursor-row-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
             >
-              <div className="w-8 h-0.5 rounded-full bg-border group-hover:bg-primary" />
+              <div className="w-8 h-0.5 rounded-full bg-white/20 group-hover:bg-primary-container" />
             </div>
           )}
 
-          {/* Console & Test Results Panel */}
+          {/* Lower Section: Console Panel Drawer */}
           <div style={isConsoleOpen ? { height: `${consoleHeight}px` } : undefined}>
             <ConsolePanel
               testCases={question.testCases || []}

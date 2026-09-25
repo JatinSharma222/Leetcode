@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
-import { Copy, RotateCcw, Check, Maximize2, Minimize2, Settings, Type } from "lucide-react";
-import { Button } from "./button";
+import { Copy, RotateCcw, Check, Maximize2, Minimize2, Code2, Map } from "lucide-react";
 
 interface CodeEditorProps {
   code: string;
@@ -13,10 +12,10 @@ interface CodeEditorProps {
   disabled?: boolean;
 }
 
-const LANGUAGE_MAP: Record<string, string> = {
-  python: "python",
-  cpp: "cpp",
-  javascript: "javascript",
+const FILE_NAME_MAP: Record<string, string> = {
+  python: "solution.py",
+  cpp: "solution.cpp",
+  javascript: "solution.js",
 };
 
 export default function CodeEditor({
@@ -29,9 +28,8 @@ export default function CodeEditor({
   disabled = false,
 }: CodeEditorProps) {
   const [copied, setCopied] = useState(false);
-  const [fontSize, setFontSize] = useState<number>(13);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [minimapEnabled, setMinimapEnabled] = useState(false);
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,62 +56,49 @@ export default function CodeEditor({
       },
     });
 
-    // Define custom luxury theme inspired by Black Cherry and Cream Vanilla
-    monaco.editor.defineTheme("atelier-burgundy", {
+    // Define Obsidian Precision theme
+    monaco.editor.defineTheme("obsidian-precision", {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "comment", foreground: "9E534E", fontStyle: "italic" },
-        { token: "keyword", foreground: "E4C7A8", fontStyle: "bold" },
-        { token: "string", foreground: "DFB58E" },
-        { token: "number", foreground: "F5D6B6" },
-        { token: "type", foreground: "F0E2D1", fontStyle: "italic" },
-        { token: "function", foreground: "F9E9D8" },
-        { token: "variable", foreground: "EEDCC8" },
-        { token: "operator", foreground: "CDB296" },
-        { token: "delimiter", foreground: "C5A586" },
-        { token: "identifier", foreground: "EEDCC8" },
+        { token: "comment", foreground: "6B7280", fontStyle: "italic" },
+        { token: "keyword", foreground: "F43F5E", fontStyle: "bold" },
+        { token: "string", foreground: "34D399" },
+        { token: "number", foreground: "A78BFA" },
+        { token: "type", foreground: "38BDF8" },
+        { token: "function", foreground: "60A5FA" },
+        { token: "variable", foreground: "F9FAFB" },
+        { token: "operator", foreground: "F43F5E" },
+        { token: "delimiter", foreground: "9CA3AF" },
+        { token: "identifier", foreground: "F9FAFB" },
       ],
       colors: {
-        "editor.background": "#460402",
-        "editor.foreground": "#EEDCC8",
-        "editor.lineHighlightBackground": "#56070380",
-        "editor.selectionBackground": "#74100B",
-        "editorCursor.foreground": "#EEDCC8",
-        "editorLineNumber.foreground": "#8E332F",
-        "editorLineNumber.activeForeground": "#EEDCC8",
-        "editor.selectionHighlightBackground": "#74100B80",
-        "editorBracketMatch.background": "#5D070360",
-        "editorBracketMatch.border": "#EEDCC860",
-        "editorIndentGuide.background": "#580905",
-        "editorIndentGuide.activeBackground": "#7E140E",
-        "editorGutter.background": "#3E0301",
-        "scrollbarSlider.background": "#5D070380",
-        "scrollbarSlider.hoverBackground": "#72100B",
+        "editor.background": "#0B0B0F",
+        "editor.foreground": "#F9FAFB",
+        "editor.lineHighlightBackground": "#16161F",
+        "editor.selectionBackground": "#E11D4840",
+        "editorCursor.foreground": "#E11D48",
+        "editorLineNumber.foreground": "#4B5563",
+        "editorLineNumber.activeForeground": "#F9FAFB",
+        "editor.selectionHighlightBackground": "#E11D4820",
+        "editorBracketMatch.background": "#E11D4830",
+        "editorBracketMatch.border": "#E11D4880",
+        "editorIndentGuide.background": "#1F1F28",
+        "editorIndentGuide.activeBackground": "#374151",
+        "editorGutter.background": "#0E0E12",
+        "scrollbarSlider.background": "#FFFFFF15",
+        "scrollbarSlider.hoverBackground": "#FFFFFF25",
       },
     });
 
-    monaco.editor.setTheme("atelier-burgundy");
+    monaco.editor.setTheme("obsidian-precision");
     editor.focus();
   };
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = code;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   const toggleFullscreen = () => {
@@ -131,159 +116,106 @@ export default function CodeEditor({
     }
   };
 
-  const cycleFontSize = () => {
-    setFontSize((prev) => (prev === 12 ? 14 : prev === 14 ? 16 : 12));
-  };
+  const fileName = FILE_NAME_MAP[language] || "solution.txt";
 
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col h-full w-full rounded-xl border border-border bg-[#460402] overflow-hidden shadow-[0_4px_16px_rgba(93,7,3,0.18)] font-mono text-sm ${
-        isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""
+      className={`flex h-full flex-col rounded-xl border border-white/5 bg-surface-base overflow-hidden shadow-xl ${
+        isFullscreen ? "fixed inset-0 z-50 rounded-none border-none" : ""
       }`}
     >
       {/* Editor Header Bar */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-[#3E0301] px-3 select-none">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[#7A120D]" />
-          <span className="h-2 w-2 rounded-full bg-[#9B6F30]" />
-          <span className="h-2 w-2 rounded-full bg-[#8B7032]" />
-          <span className="ml-2 font-display text-xs font-semibold tracking-wider text-[#EEDCC8] uppercase">
-            Atelier Editor ({language})
-          </span>
+      <div className="h-9 bg-surface-elevated px-3 flex items-center justify-between shrink-0 border-b border-white/5 select-none">
+        <div className="flex items-center h-full">
+          <div className="flex items-center gap-2 px-3 h-full bg-surface-base font-mono text-xs text-text-primary font-medium border-r border-white/5 shadow-xs">
+            <Code2 className="h-3.5 w-3.5 text-[#38BDF8]" />
+            <span>{fileName}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={cycleFontSize}
-            title={`Font size: ${fontSize}px (click to toggle)`}
-            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703] text-[11px]"
-          >
-            <span className="font-sans font-semibold text-[10px]">{fontSize}</span>
-          </Button>
+        <div className="flex items-center gap-3 font-mono text-[11px] text-text-muted">
+          <span className="hidden sm:inline">Spaces: 4</span>
+          <span className="hidden sm:inline">UTF-8</span>
+          <span className="uppercase">{language}</span>
 
-          {onReset && (
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowConfirmReset(true)}
-                title="Reset starter code"
-                className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
+          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              title="Copy solution code"
+              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-status-accepted" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+
+            {onReset && (
+              <button
+                type="button"
+                onClick={onReset}
+                title="Reset to starter template"
+                className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
+              </button>
+            )}
 
-              {showConfirmReset && (
-                <div className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-border bg-[#3E0301] p-3 shadow-xl space-y-2.5 font-sans">
-                  <p className="text-xs text-[#EEDCC8] font-medium">Reset code to default?</p>
-                  <p className="text-[11px] text-[#C5A586]">Your current changes will be discarded.</p>
-                  <div className="flex justify-end gap-1.5 pt-1">
-                    <button
-                      onClick={() => setShowConfirmReset(false)}
-                      className="px-2 py-1 text-[11px] text-[#C5A586] hover:text-[#EEDCC8] cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowConfirmReset(false);
-                        onReset();
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-semibold bg-[#7A120D] text-[#EEDCC8] border border-[#8C1813] rounded hover:bg-[#8C1813] cursor-pointer"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setMinimapEnabled((prev) => !prev)}
+              title="Toggle Minimap"
+              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+            >
+              <Map className={`h-3.5 w-3.5 ${minimapEnabled ? "text-primary" : ""}`} />
+            </button>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleCopy}
-            title="Copy code"
-            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-[#DFB58E]" /> : <Copy className="h-3.5 w-3.5" />}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={toggleFullscreen}
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            className="h-7 w-7 text-[#D8C1A8] hover:text-[#EEDCC8] hover:bg-[#5D0703]"
-          >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-          </Button>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title="Toggle Fullscreen"
+              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Monaco Editor Container */}
-      <div className="flex-1 overflow-hidden min-h-0 bg-[#460402]">
+      {/* Editor Surface */}
+      <div className="flex-1 min-h-0 overflow-hidden relative">
         <MonacoEditor
           height="100%"
-          language={LANGUAGE_MAP[language] || "plaintext"}
+          language={language === "cpp" ? "cpp" : language}
           value={code}
-          onChange={(value) => onChange(value ?? "")}
+          onChange={(val) => onChange(val || "")}
           onMount={handleEditorMount}
-          theme="atelier-burgundy"
-          loading={
-            <div className="flex h-full items-center justify-center text-[#C5A586] text-xs">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
-              Loading editor...
-            </div>
-          }
+          theme="obsidian-precision"
           options={{
-            fontSize,
-            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-            fontLigatures: true,
+            readOnly: disabled,
+            minimap: { enabled: minimapEnabled },
+            fontSize: 13,
+            fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
             lineNumbers: "on",
-            minimap: { enabled: false },
+            lineNumbersMinChars: 3,
+            glyphMargin: false,
+            folding: true,
             scrollBeyondLastLine: false,
-            automaticLayout: true,
-            tabSize: 4,
-            insertSpaces: true,
-            wordWrap: "off",
-            renderLineHighlight: "line",
+            renderLineHighlight: "all",
             cursorBlinking: "smooth",
             cursorSmoothCaretAnimation: "on",
             smoothScrolling: true,
-            bracketPairColorization: { enabled: true },
-            autoClosingBrackets: "always",
-            autoClosingQuotes: "always",
-            autoIndent: "full",
-            formatOnPaste: true,
-            suggestOnTriggerCharacters: true,
-            quickSuggestions: true,
-            padding: { top: 10, bottom: 10 },
-            readOnly: disabled,
-            domReadOnly: disabled,
-            scrollbar: {
-              verticalScrollbarSize: 7,
-              horizontalScrollbarSize: 7,
-              verticalSliderSize: 7,
-            },
+            automaticLayout: true,
+            tabSize: 4,
+            padding: { top: 12, bottom: 12 },
             overviewRulerBorder: false,
             hideCursorInOverviewRuler: true,
-            renderWhitespace: "selection",
+            scrollbar: {
+              verticalScrollbarSize: 6,
+              horizontalScrollbarSize: 6,
+            },
           }}
         />
-      </div>
-
-      {/* Footer shortcut bar */}
-      <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-[#3E0301] px-3 text-[11px] text-[#C5A586] select-none">
-        <div className="flex items-center gap-2">
-          <span>Run: <kbd className="rounded bg-[#5D0703] border border-[#6E0A05] px-1 py-0.5 text-[#EEDCC8]">⌘ / Ctrl + '</kbd></span>
-          <span>•</span>
-          <span>Submit: <kbd className="rounded bg-[#5D0703] border border-[#6E0A05] px-1 py-0.5 text-[#EEDCC8]">⌘ / Ctrl + ↵</kbd></span>
-        </div>
-        <span>Tab to indent</span>
       </div>
     </div>
   );
