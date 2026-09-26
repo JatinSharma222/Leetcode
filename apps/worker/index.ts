@@ -330,6 +330,8 @@ async function handleRunRequest(data: {
           runId,
           status: "Failure",
           durationMs: 0,
+          executionTimeMs: 0,
+          output: "",
           error: `Unsupported language: ${language}`,
           cases: [],
         }),
@@ -378,6 +380,8 @@ async function handleRunRequest(data: {
           runId,
           status: "Failure",
           durationMs: 0,
+          executionTimeMs: 0,
+          output: "",
           error: "No test cases configured for this question.",
           cases: [],
         }),
@@ -451,12 +455,21 @@ async function handleRunRequest(data: {
           ? "Accepted"
           : "WrongAnswer";
 
+    const firstError = caseResults.find((c) => c.error)?.error || "";
+    const combinedOutput = caseResults
+      .map((c, i) => (casesToRun.length > 1 ? `Case ${i + 1}:\n${c.actualOutput || c.error}` : (c.actualOutput || c.error)))
+      .filter(Boolean)
+      .join("\n\n");
+
     await client.lPush(
       `run_results:${runId}`,
       JSON.stringify({
         runId,
         status: overallStatus,
         durationMs: maxDurationMs,
+        executionTimeMs: maxDurationMs,
+        output: combinedOutput || (caseResults[0]?.actualOutput ?? ""),
+        error: firstError,
         cases: caseResults,
       }),
     );
@@ -469,6 +482,8 @@ async function handleRunRequest(data: {
         runId,
         status: "Failure",
         durationMs: 0,
+        executionTimeMs: 0,
+        output: "",
         error: `Execution engine error: ${err?.message || "Internal error"}`,
         cases: [],
       }),

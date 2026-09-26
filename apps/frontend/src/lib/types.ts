@@ -45,8 +45,10 @@ export interface RunResultCase {
 
 export interface RunResultResponse {
   runId: string;
-  status: "Accepted" | "WrongAnswer" | "Failure" | "TLE";
+  status: "Accepted" | "WrongAnswer" | "Failure" | "TLE" | "Success";
   durationMs: number;
+  output?: string;
   error?: string;
+  executionTimeMs?: number;
   cases: RunResultCase[];
 }

@@ -12,6 +12,7 @@ import {
   Zap,
   Terminal,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import type { TestCase, SubmissionStatus, RunResultResponse } from "@/lib/types";
 
@@ -53,6 +54,7 @@ export default function ConsolePanel({
 }: ConsolePanelProps) {
   const [activeTab, setActiveTab] = useState<"testcase" | "runResult" | "subResult">("testcase");
   const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
+  const [selectedRunCaseIdx, setSelectedRunCaseIdx] = useState(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Auto switch tabs on activity
@@ -68,6 +70,15 @@ export default function ConsolePanel({
     }
   }, [isSubmitting, submissionResult]);
 
+  useEffect(() => {
+    if (runResult?.cases && runResult.cases.length > 0) {
+      const firstFailIdx = runResult.cases.findIndex((c) => !c.passed);
+      setSelectedRunCaseIdx(firstFailIdx >= 0 ? firstFailIdx : 0);
+    } else {
+      setSelectedRunCaseIdx(0);
+    }
+  }, [runResult]);
+
   const sampleInputs = testCases.map((tc) => tc.input);
   const effectiveInputs = customInputs.length > 0 ? customInputs : sampleInputs;
 
@@ -79,7 +90,7 @@ export default function ConsolePanel({
 
   const handleAddCase = () => {
     const base = customInputs.length > 0 ? customInputs : sampleInputs;
-    const nextCase = base.length > 0 ? base[base.length - 1] : "";
+    const nextCase = base[base.length - 1] ?? "";
     const updated = [...base, nextCase];
     onCustomInputsChange?.(updated);
     setSelectedCaseIdx(updated.length - 1);
@@ -108,7 +119,15 @@ export default function ConsolePanel({
 
   const passedTests = submissionResult?.passedCount ?? 0;
   const totalTests = submissionResult?.totalCount ?? (testCases.length || 10);
-  const isAccepted = submissionResult?.status === "Success";
+  const isAccepted =
+    submissionResult?.status === "Success" ||
+    (submissionResult?.status as string) === "Accepted";
+
+  const isRunAccepted =
+    runResult?.status === "Accepted" || runResult?.status === "Success";
+  const runPassedCount =
+    runResult?.cases?.filter((c) => c.passed).length ?? (isRunAccepted ? (runResult?.cases?.length ?? 0) : 0);
+  const runTotalCount = runResult?.cases?.length ?? 0;
 
   return (
     <div className="flex h-full flex-col bg-surface-elevated rounded-xl border border-white/5 shadow-2xl overflow-hidden">
@@ -146,12 +165,16 @@ export default function ConsolePanel({
             {runResult && (
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  runResult.status === "Success" ? "bg-status-accepted" : "bg-status-error"
+                  isRunAccepted ? "bg-status-accepted" : "bg-status-error"
                 }`}
               />
             )}
             {activeTab === "runResult" && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
+              <span
+                className={`absolute bottom-0 left-0 w-full h-[2px] ${
+                  isRunAccepted ? "bg-status-accepted" : "bg-primary-container"
+                }`}
+              />
             )}
           </button>
 
@@ -284,43 +307,204 @@ export default function ConsolePanel({
                   {/* Status Banner */}
                   <div className="flex items-center justify-between bg-surface-base p-3 rounded-lg border border-white/5">
                     <div className="flex items-center gap-2">
-                      {runResult.status === "Success" ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-accepted/15 text-status-accepted flex items-center gap-1.5">
+                      {isRunAccepted ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-accepted/15 text-status-accepted flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(16,185,129,0.25)]">
                           <CheckCircle2 className="h-4 w-4" />
                           Accepted
                         </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-error/15 text-status-error flex items-center gap-1.5">
+                      ) : runResult.status === "WrongAnswer" ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-error/15 text-status-error flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(244,63,94,0.25)]">
                           <XCircle className="h-4 w-4" />
-                          {runResult.status}
+                          Wrong Answer
+                        </span>
+                      ) : runResult.status === "TLE" ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-warning/15 text-status-warning flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(245,158,11,0.25)]">
+                          <Clock className="h-4 w-4" />
+                          Time Limit Exceeded
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-error/15 text-status-error flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(244,63,94,0.25)]">
+                          <AlertTriangle className="h-4 w-4" />
+                          {runResult.status === "Failure" ? "Runtime Error" : runResult.status}
                         </span>
                       )}
-                      <span className="text-xs text-text-muted font-mono">Interactive Run</span>
+                      <span className="text-xs text-text-muted font-mono">
+                        {runTotalCount > 0 ? `${runPassedCount} / ${runTotalCount} Cases Passed` : "Interactive Run"}
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2 text-xs font-mono text-text-muted">
                       <Clock className="h-3.5 w-3.5 text-text-secondary" />
-                      <span>{runResult.executionTimeMs ? `${runResult.executionTimeMs}ms` : "18ms"}</span>
+                      <span>{runResult.durationMs !== undefined ? `${runResult.durationMs}ms` : runResult.executionTimeMs !== undefined ? `${runResult.executionTimeMs}ms` : "0ms"}</span>
                     </div>
                   </div>
 
-                  {/* Output Display */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-mono text-text-muted">
-                      <span>Standard Output / Return:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(runResult.output || "", "run-output")}
-                        className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
-                      >
-                        {copiedField === "run-output" ? <Check className="h-3 w-3 text-status-accepted" /> : <Copy className="h-3 w-3" />}
-                        <span>Copy</span>
-                      </button>
+                  {/* Test Cases Pill Tabs (if cases exist) */}
+                  {runResult.cases && runResult.cases.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/5 pb-2">
+                        {runResult.cases.map((c, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setSelectedRunCaseIdx(idx)}
+                            className={`px-3 py-1 rounded-md text-xs font-mono transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedRunCaseIdx === idx
+                                ? "bg-surface-hover text-text-primary font-semibold shadow-xs border border-white/10"
+                                : "text-text-muted hover:text-text-primary"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                c.passed ? "bg-status-accepted" : "bg-status-error"
+                              }`}
+                            />
+                            <span>Case {idx + 1}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Details of Selected Run Case */}
+                      {(() => {
+                        const activeCase = runResult.cases[selectedRunCaseIdx] || runResult.cases[0];
+                        if (!activeCase) return null;
+
+                        return (
+                          <div className="space-y-3">
+                            {/* Input Vector */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs font-mono text-text-muted">
+                                <span>Input Vector (stdin):</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(activeCase.input || "", `run-input-${selectedRunCaseIdx}`)}
+                                  className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                >
+                                  {copiedField === `run-input-${selectedRunCaseIdx}` ? (
+                                    <Check className="h-3 w-3 text-status-accepted" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                  <span>Copy</span>
+                                </button>
+                              </div>
+                              <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap">
+                                {activeCase.input || "(empty)"}
+                              </pre>
+                            </div>
+
+                            {/* Output */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs font-mono text-text-muted">
+                                <span className="flex items-center gap-1.5">
+                                  <span>Output / Return:</span>
+                                  {activeCase.passed ? (
+                                    <span className="text-[10px] text-status-accepted font-semibold">✓ Matches Expected</span>
+                                  ) : (
+                                    <span className="text-[10px] text-status-error font-semibold">✗ Output Mismatch</span>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(activeCase.actualOutput || "", `run-output-${selectedRunCaseIdx}`)}
+                                  className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                >
+                                  {copiedField === `run-output-${selectedRunCaseIdx}` ? (
+                                    <Check className="h-3 w-3 text-status-accepted" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                  <span>Copy</span>
+                                </button>
+                              </div>
+                              <pre
+                                className={`p-3 rounded-lg bg-surface-base border font-mono text-xs whitespace-pre-wrap max-h-36 overflow-y-auto ${
+                                  activeCase.passed
+                                    ? "border-white/5 text-text-primary"
+                                    : "border-status-error/30 text-status-error bg-status-error/5"
+                                }`}
+                              >
+                                {activeCase.actualOutput !== "" ? (
+                                  activeCase.actualOutput
+                                ) : (
+                                  <span className="text-text-muted italic">(no output returned)</span>
+                                )}
+                              </pre>
+                            </div>
+
+                            {/* Expected Output */}
+                            {activeCase.expectedOutput !== undefined && activeCase.expectedOutput !== "" && (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs font-mono text-text-muted">
+                                  <span>Expected Output:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy(activeCase.expectedOutput || "", `run-expected-${selectedRunCaseIdx}`)}
+                                    className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                  >
+                                    {copiedField === `run-expected-${selectedRunCaseIdx}` ? (
+                                      <Check className="h-3 w-3 text-status-accepted" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                    <span>Copy</span>
+                                  </button>
+                                </div>
+                                <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                  {activeCase.expectedOutput}
+                                </pre>
+                              </div>
+                            )}
+
+                            {/* Stderr / Error if any */}
+                            {activeCase.error && (
+                              <div className="space-y-1.5">
+                                <div className="text-xs font-mono text-status-error flex items-center gap-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  <span>Stderr / Error Log:</span>
+                                </div>
+                                <pre className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 font-mono text-xs text-status-error whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                  {activeCase.error}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
-                    <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap max-h-36 overflow-y-auto">
-                      {runResult.output || "(no output returned)"}
-                    </pre>
-                  </div>
+                  ) : (
+                    /* Fallback if no cases array */
+                    <div className="space-y-3">
+                      {runResult.error && (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-mono text-status-error flex items-center gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <span>Error Log:</span>
+                          </div>
+                          <pre className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 font-mono text-xs text-status-error whitespace-pre-wrap max-h-36 overflow-y-auto">
+                            {runResult.error}
+                          </pre>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-mono text-text-muted">
+                          <span>Standard Output / Return:</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(runResult.output || "", "run-output")}
+                            className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                          >
+                            {copiedField === "run-output" ? <Check className="h-3 w-3 text-status-accepted" /> : <Copy className="h-3 w-3" />}
+                            <span>Copy</span>
+                          </button>
+                        </div>
+                        <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap max-h-36 overflow-y-auto">
+                          {runResult.output || <span className="text-text-muted italic">(no output returned)</span>}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -355,7 +539,7 @@ export default function ConsolePanel({
                         }`}
                       >
                         {isAccepted ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                        {isAccepted ? "Accepted" : submissionResult.status}
+                        {isAccepted ? "Accepted" : submissionResult.status === "WrongAnswer" ? "Wrong Answer" : submissionResult.status}
                       </span>
                       <span className="text-xs text-text-secondary hidden sm:inline">
                         Next-gen vector judge
