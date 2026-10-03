@@ -36,3 +36,6 @@ apps/worker/code/*
 
 # design assets and mockups
 design/
+
+# deployment documentation
+DEPLOYMENT.md
