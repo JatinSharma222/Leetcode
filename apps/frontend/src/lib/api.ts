@@ -20,6 +20,14 @@ export function setSavedUsername(username: string) {
   localStorage.setItem("username", username);
 }
 
+export function getAuthToken(): string | null {
+  return localStorage.getItem("token");
+}
+
+export function setAuthToken(token: string) {
+  localStorage.setItem("token", token);
+}
+
 export function clearAuthToken() {
   clearAuthSession();
 }
@@ -27,6 +35,32 @@ export function clearAuthToken() {
 export function clearAuthSession() {
   localStorage.removeItem("username");
   localStorage.removeItem("token");
+}
+
+export function getBookmarkedProblemIds(): string[] {
+  try {
+    const raw = localStorage.getItem("bookmarked_problems");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function toggleBookmarkedProblem(problemId: string): boolean {
+  try {
+    const bookmarks = new Set(getBookmarkedProblemIds());
+    let isNowBookmarked = false;
+    if (bookmarks.has(problemId)) {
+      bookmarks.delete(problemId);
+    } else {
+      bookmarks.add(problemId);
+      isNowBookmarked = true;
+    }
+    localStorage.setItem("bookmarked_problems", JSON.stringify(Array.from(bookmarks)));
+    return isNowBookmarked;
+  } catch {
+    return false;
+  }
 }
 
 export async function fetchCurrentUser(): Promise<{ userId: string; username: string } | null> {
@@ -44,8 +78,10 @@ export async function fetchCurrentUser(): Promise<{ userId: string; username: st
 }
 
 async function apiFetch(path: string, init: RequestInit = {}, requireAuth = false): Promise<any> {
+  const token = getAuthToken();
   const headers: Record<string, string> = {
     ...(init.body ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(init.headers as Record<string, string> | undefined),
   };
 
@@ -75,13 +111,17 @@ async function apiFetch(path: string, init: RequestInit = {}, requireAuth = fals
   return data;
 }
 
-export async function signIn(username: string, password: string): Promise<void> {
+export async function signIn(username: string, password: string): Promise<{ userId: string; username: string }> {
   const data = await apiFetch("/auth/signin", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+  if (data?.token) {
+    setAuthToken(data.token);
+  }
   const uname = data?.user?.username || username;
   setSavedUsername(uname);
+  return data?.user ?? { userId: data?.user?.id || "", username: uname };
 }
 
 export async function signUp(username: string, password: string): Promise<void> {
@@ -89,7 +129,8 @@ export async function signUp(username: string, password: string): Promise<void> 
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
-  setSavedUsername(username);
+  // Auto sign in to capture token and user session
+  await signIn(username, password);
 }
 
 export async function signOut(): Promise<void> {

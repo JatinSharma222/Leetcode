@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { Eye, EyeOff, Lock, User, ArrowRight, AlertTriangle } from "lucide-react";
-import { signIn, signUp } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 export default function AuthCredentials() {
   const navigate = useNavigate();
+  const { login, register } = useAuth();
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -14,9 +15,30 @@ export default function AuthCredentials() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername || !password) {
       setError("Please fill in all fields.");
       return;
+    }
+
+    if (activeTab === "signup") {
+      if (trimmedUsername.length < 3) {
+        setError("Username must be at least 3 characters.");
+        return;
+      }
+      if (trimmedUsername.length > 30) {
+        setError("Username must be at most 30 characters.");
+        return;
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+        setError("Username can only contain letters, numbers, and underscores.");
+        return;
+      }
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -24,9 +46,9 @@ export default function AuthCredentials() {
 
     try {
       if (activeTab === "signin") {
-        await signIn(username.trim(), password);
+        await login(trimmedUsername, password);
       } else {
-        await signUp(username.trim(), password);
+        await register(trimmedUsername, password);
       }
       navigate("/");
     } catch (err: unknown) {
@@ -36,24 +58,22 @@ export default function AuthCredentials() {
     }
   };
 
-  const handleSocialClick = (provider: string) => {
-    setError(`${provider} login will be configured with production OAuth client credentials.`);
-  };
-
   return (
     <div className="w-full max-w-lg mx-auto p-6 sm:p-10 rounded-2xl bg-surface-elevated/90 backdrop-blur-xl shadow-2xl relative overflow-hidden border border-white/5">
       {/* Top Accent Light Sweep */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary-container to-transparent opacity-80" />
 
       {/* Header & Segmented Tabs */}
-      <div className="space-y-6 mb-8">
+      <div className="space-y-6 mb-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-2xl font-bold text-text-primary tracking-tight">
-              Enter Sandbox
+              {activeTab === "signin" ? "Sign In" : "Create Account"}
             </h2>
             <p className="text-xs text-text-muted mt-1 font-sans">
-              Select credentials to access computational runtime.
+              {activeTab === "signin"
+                ? "Enter your credentials to access the coding environment."
+                : "Register a handle to start solving problems and tracking submissions."}
             </p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-surface-hover flex items-center justify-center border border-white/5 text-text-muted">
@@ -94,46 +114,6 @@ export default function AuthCredentials() {
         </div>
       </div>
 
-      {/* Fast Social OAuth */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <button
-          type="button"
-          onClick={() => handleSocialClick("GitHub")}
-          className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-surface-hover hover:bg-surface-container-high transition-all duration-150 shadow-xs active:scale-[0.98] border border-white/5 cursor-pointer"
-        >
-          <svg className="w-4 h-4 fill-text-primary group-hover:scale-105 transition-transform" viewBox="0 0 24 24">
-            <path
-              clipRule="evenodd"
-              fillRule="evenodd"
-              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-            />
-          </svg>
-          <span className="text-xs font-semibold text-text-primary">GitHub</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSocialClick("Google")}
-          className="group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-surface-hover hover:bg-surface-container-high transition-all duration-150 shadow-xs active:scale-[0.98] border border-white/5 cursor-pointer"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
-            <path d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.9 5 12 5z" fill="#EA4335" />
-            <path d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" fill="#4285F4" />
-            <path d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.7s.1-2 .4-2.7L1.6 6.4C.6 8.3 0 10.1 0 12s.6 3.7 1.6 5.6l3.7-2.9z" fill="#FBBC05" />
-            <path d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" fill="#34A853" />
-          </svg>
-          <span className="text-xs font-semibold text-text-primary">Google</span>
-        </button>
-      </div>
-
-      {/* Visual Divider */}
-      <div className="relative flex items-center justify-center my-6">
-        <div className="w-full h-px bg-white/5" />
-        <span className="absolute px-3 bg-surface-elevated font-mono text-[10px] text-text-muted uppercase tracking-widest">
-          or continue with username
-        </span>
-      </div>
-
       {/* Error Banner */}
       {error && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-status-error/30 bg-status-error/10 p-3 text-xs text-status-error">
@@ -148,7 +128,9 @@ export default function AuthCredentials() {
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-text-secondary flex justify-between">
             <span>Username</span>
-            <span className="font-mono text-[10px] text-text-muted">required</span>
+            <span className="font-mono text-[10px] text-text-muted">
+              {activeTab === "signup" ? "min 3 chars, letters & numbers" : "required"}
+            </span>
           </label>
           <div className="relative flex items-center">
             <User className="absolute left-3.5 h-4 w-4 text-text-muted pointer-events-none" />
@@ -157,7 +139,8 @@ export default function AuthCredentials() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="elena_dev"
+              placeholder="username"
+              autoComplete="username"
               className="w-full bg-surface-base text-text-primary placeholder:text-text-muted text-xs pl-10 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-container shadow-inner transition-colors duration-150 border border-white/5"
             />
           </div>
@@ -167,7 +150,9 @@ export default function AuthCredentials() {
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-text-secondary flex justify-between">
             <span>Password</span>
-            <span className="font-mono text-[10px] text-text-muted">min 6 chars</span>
+            <span className="font-mono text-[10px] text-text-muted">
+              {activeTab === "signup" ? "min 8 characters" : "required"}
+            </span>
           </label>
           <div className="relative flex items-center">
             <Lock className="absolute left-3.5 h-4 w-4 text-text-muted pointer-events-none" />
@@ -177,11 +162,13 @@ export default function AuthCredentials() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
+              autoComplete={activeTab === "signin" ? "current-password" : "new-password"}
               className="w-full bg-surface-base text-text-primary placeholder:text-text-muted text-xs pl-10 pr-10 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-container shadow-inner transition-colors duration-150 border border-white/5"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
               className="absolute right-3 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -189,10 +176,10 @@ export default function AuthCredentials() {
           </div>
         </div>
 
-        {/* High-Retention Prompt */}
+        {/* Informational Prompt */}
         <div className="pt-1 text-[11px] text-text-muted flex items-center gap-1.5">
-          <span className="text-status-warning">🔥</span>
-          <span>Sign up today to start your 7-day challenge streak.</span>
+          <span className="text-status-warning">⚡</span>
+          <span>Access interactive code execution, custom test vectors, and submission tracking.</span>
         </div>
 
         {/* Primary Action Button */}
@@ -204,11 +191,11 @@ export default function AuthCredentials() {
           {loading ? (
             <div className="flex items-center gap-2">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              <span>Connecting to judge...</span>
+              <span>Authenticating...</span>
             </div>
           ) : (
             <>
-              <span>{activeTab === "signin" ? "Enter Sandbox" : "Create Account"}</span>
+              <span>{activeTab === "signin" ? "Sign In to AtelierCode" : "Create Account"}</span>
               <ArrowRight className="h-4 w-4" />
             </>
           )}

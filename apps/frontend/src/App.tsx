@@ -1,54 +1,30 @@
 // @ts-ignore — CSS side-effect import
 import "./index.css";
 
-import { useState, useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import type { ReactNode } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import Auth from "./screens/Auth";
 import Dashboard from "./screens/Dashboard";
 import Editor from "./screens/Editor";
 import Submissions from "./screens/Submissions";
-import { fetchCurrentUser } from "./lib/api";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const [checking, setChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    let mounted = true;
-    async function checkAuth() {
-      try {
-        const user = await fetchCurrentUser();
-        if (mounted) {
-          setIsAuthenticated(!!user);
-          setChecking(false);
-        }
-      } catch {
-        if (mounted) {
-          setIsAuthenticated(false);
-          setChecking(false);
-        }
-      }
-    }
-    checkAuth();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (checking) {
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground font-sans">
+      <div className="flex min-h-screen items-center justify-center bg-surface-base text-text-muted font-sans">
         <div className="flex items-center gap-3 text-sm">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Verifying session...
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
+          <span>Verifying session...</span>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
@@ -56,36 +32,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: ReactNode }) {
-  const [checking, setChecking] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    let mounted = true;
-    async function checkAuth() {
-      try {
-        const user = await fetchCurrentUser();
-        if (mounted) {
-          setIsAuthenticated(!!user);
-          setChecking(false);
-        }
-      } catch {
-        if (mounted) {
-          setIsAuthenticated(false);
-          setChecking(false);
-        }
-      }
-    }
-    checkAuth();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (checking) {
+  if (loading) {
     return null;
   }
 
-  if (isAuthenticated) {
+  if (user) {
     return <Navigate to="/" replace />;
   }
 
@@ -94,8 +47,9 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
 export function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
         <Route
           path="/auth"
           element={
@@ -136,7 +90,8 @@ export function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
-  );
+  </AuthProvider>
+);
 }
 
 export default App;
