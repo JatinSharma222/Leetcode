@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router";
-import { Check, Shield, ArrowRight, CheckCircle2 } from "lucide-react";
-import type { Question } from "@/lib/types";
+import { Check, ArrowRight, CheckCircle2, Flame, Award } from "lucide-react";
+import type { Question, Submission } from "@/lib/types";
 
 interface StatsOverviewProps {
   totalQuestions?: number;
@@ -15,100 +15,114 @@ interface StatsOverviewProps {
   hardSolved?: number;
   hardTotal?: number;
   dailyQuestion?: Question | null;
+  isDailySolved?: boolean;
+  submissions?: Submission[];
 }
 
 export default function StatsOverview({
   totalQuestions = 0,
   solvedCount = 0,
-  acceptanceRate = 78.2,
+  totalSubmissions = 0,
+  acceptanceRate = 0,
   easySolved = 0,
-  easyTotal = 5,
+  easyTotal = 0,
   mediumSolved = 0,
-  mediumTotal = 3,
+  mediumTotal = 0,
   hardSolved = 0,
-  hardTotal = 2,
+  hardTotal = 0,
   dailyQuestion,
+  isDailySolved = false,
+  submissions = [],
 }: StatsOverviewProps) {
-  // Live countdown timer for the daily challenge (e.g., remaining until midnight UTC)
-  const [timeLeft, setTimeLeft] = useState("06h 20m 13s remaining");
-
-  useEffect(() => {
-    const updateCountdown = () => {
-      const now = new Date();
-      const endOfDay = new Date();
-      endOfDay.setUTCHours(23, 59, 59, 999);
-      const diff = Math.max(0, endOfDay.getTime() - now.getTime());
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeLeft(
-        `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s remaining`
-      );
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const percentSolved = totalQuestions > 0 ? Math.round((solvedCount / totalQuestions) * 100) : 0;
-  const easyPercent = easyTotal > 0 ? Math.round((easySolved / easyTotal) * 100) : 0;
-  const medPercent = mediumTotal > 0 ? Math.round((mediumSolved / mediumTotal) * 100) : 0;
-  const hardPercent = hardTotal > 0 ? Math.round((hardSolved / hardTotal) * 100) : 0;
 
-  const dailyId = dailyQuestion?.id || "two-sum";
-  const dailyTitle = dailyQuestion?.title || "Two Sum (Pair Matching)";
+  // Compute 7-day momentum from submissions
+  const { streak, past7Days } = useMemo(() => {
+    const dateCounts = new Map<string, number>();
+    for (const sub of submissions) {
+      if (!sub.createdAt) continue;
+      const d = new Date(sub.createdAt);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      dateCounts.set(key, (dateCounts.get(key) || 0) + 1);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calculate active streak
+    let activeStreak = 0;
+    const checkDate = new Date(today);
+    const todayKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+    const todayHasRuns = (dateCounts.get(todayKey) || 0) > 0;
+
+    if (!todayHasRuns) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    while (true) {
+      const k = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+      if ((dateCounts.get(k) || 0) > 0) {
+        activeStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    // Past 7 days (including today)
+    const days: { label: string; active: boolean; isToday: boolean }[] = [];
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      days.push({
+        label: dayNames[d.getDay()] ?? "",
+        active: (dateCounts.get(k) || 0) > 0,
+        isToday: i === 0,
+      });
+    }
+
+    return { streak: activeStreak, past7Days: days };
+  }, [submissions]);
+
+  const dailyId = dailyQuestion?.id || "";
+  const dailyTitle = dailyQuestion?.title || "Challenge of the Day";
   const dailyDesc = dailyQuestion?.description
-    ? dailyQuestion.description.slice(0, 140) + "..."
-    : "Find indices of the two numbers such that they add up to a specific target.";
+    ? dailyQuestion.description.slice(0, 160) + (dailyQuestion.description.length > 160 ? "..." : "")
+    : "Select a challenge from the problem catalog to begin solving.";
 
   return (
     <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch mb-6">
-      {/* Card 1: 3D Daily Quest Monolith (6 cols / 50%) */}
+      {/* Card 1: Featured Daily Challenge (6 cols / 50%) */}
       <div className="lg:col-span-6 bg-surface-elevated rounded-xl p-6 relative overflow-hidden flex flex-col justify-between shadow-xl border border-white/5">
-        {/* Ambient radial glows */}
         <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-primary-container/15 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-brand-wine-deep/15 blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
-          {/* Meta & Quest Countdown Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-status-warning/15 text-status-warning font-mono text-xs font-semibold tracking-wide">
-                <span>🔥</span> Daily Quest • 2X XP
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-container/15 text-primary font-mono text-xs font-semibold tracking-wide border border-primary-container/20">
+                <span>⚡</span> Featured Problem
               </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-status-warning/15 text-status-warning font-mono text-[11px] font-medium">
-                Medium
-              </span>
+              {isDailySolved && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-mono text-[11px] font-medium border border-status-accepted/20">
+                  <CheckCircle2 className="h-3 w-3" /> Solved
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-base text-text-secondary font-mono text-xs border border-white/5">
-              <span className="w-2 h-2 rounded-full bg-primary-container animate-ping" />
-              <span className="text-text-primary font-medium">{timeLeft}</span>
-            </div>
+            <span className="font-mono text-xs text-text-muted">
+              {dailyQuestion?._count?.testCases ?? 0} Test Cases
+            </span>
           </div>
 
-          {/* Problem Title & Specs */}
-          <div className="flex items-baseline gap-2 mb-1.5">
-            <span className="font-mono text-base text-text-muted font-semibold select-none">#1</span>
+          <div className="flex items-baseline gap-2 mb-2">
             <h2 className="font-display text-2xl font-bold text-text-primary tracking-tight">
               {dailyTitle}
             </h2>
-          </div>
-
-          {/* Tags */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="font-mono text-[11px] px-2.5 py-0.5 rounded bg-surface-container text-text-secondary border border-white/5">
-              Array
-            </span>
-            <span className="font-mono text-[11px] px-2.5 py-0.5 rounded bg-surface-container text-text-secondary border border-white/5">
-              Hash Table
-            </span>
-            <span className="font-mono text-[11px] px-2.5 py-0.5 rounded bg-surface-container text-text-secondary border border-white/5">
-              Two Pointers
-            </span>
           </div>
 
           <p className="text-xs text-text-secondary leading-relaxed max-w-2xl mb-4 font-sans line-clamp-2">
@@ -118,93 +132,79 @@ export default function StatsOverview({
 
         {/* Action Ribbon */}
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 pt-3 bg-surface-container-low/40 rounded-lg p-3 border border-white/5">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-status-accepted" />
-              <span className="font-mono text-xs text-text-secondary">
-                Acc: <span className="text-text-primary font-semibold">49.8%</span>
-              </span>
-            </div>
-            <div className="hidden sm:flex items-center gap-1">
-              <span className="text-status-warning text-xs">⚡</span>
-              <span className="font-mono text-xs text-text-secondary">
-                Reward: <span className="text-status-warning font-semibold">+150 XP</span>
-              </span>
-            </div>
+          <div className="flex items-center gap-2 text-xs text-text-muted">
+            <span>Library Challenge</span>
+            <span>•</span>
+            <span className="text-text-secondary">Sandboxed Runner</span>
           </div>
 
-          <Link
-            to={`/problem/${dailyId}`}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-primary-container hover:bg-brand-wine-deep text-on-primary-container text-xs font-semibold tracking-wide transition-all duration-150 shadow-[0_0_20px_-3px_rgba(225,29,72,0.45)] hover:shadow-[0_0_28px_0px_rgba(225,29,72,0.6)] active:scale-[0.98]"
-          >
-            <span>Solve Daily Challenge</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          {dailyId ? (
+            <Link
+              to={`/problem/${dailyId}`}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-primary-container hover:bg-brand-wine-deep text-on-primary-container text-xs font-semibold tracking-wide transition-all duration-150 shadow-[0_0_20px_-3px_rgba(225,29,72,0.45)] hover:shadow-[0_0_28px_0px_rgba(225,29,72,0.6)] active:scale-[0.98]"
+            >
+              <span>{isDailySolved ? "Review Solution" : "Solve Challenge"}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          ) : (
+            <span className="text-xs text-text-muted">Explore catalogue below</span>
+          )}
         </div>
       </div>
 
-      {/* Card 2: Consistency Streak Tracker (3 cols / 25%) */}
+      {/* Card 2: Personal Momentum & Streak (3 cols / 25%) */}
       <div className="lg:col-span-3 bg-surface-elevated rounded-xl p-5 flex flex-col justify-between shadow-xl relative overflow-hidden border border-white/5">
         <div>
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1.5">
-              <span className="text-base text-status-warning">🔥</span>
-              <h3 className="font-display text-sm font-bold text-text-primary">Consistency Streak</h3>
+              <Flame className="h-4 w-4 text-status-warning" />
+              <h3 className="font-display text-sm font-bold text-text-primary">Consistency</h3>
             </div>
             <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-status-warning/15 text-status-warning font-semibold">
-              14 Days
+              {streak} {streak === 1 ? "Day" : "Days"}
             </span>
           </div>
 
           {/* 7-Day Matrix */}
           <div className="grid grid-cols-7 gap-1.5 mb-5 text-center">
-            {["M", "T", "W", "T", "F"].map((day, i) => (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <span className="font-mono text-[10px] text-text-muted">{day}</span>
-                <div className="w-7 h-7 rounded-full bg-status-warning/20 text-status-warning flex items-center justify-center font-mono text-xs font-bold shadow-[0_0_10px_rgba(245,158,11,0.25)]">
-                  <Check className="h-3.5 w-3.5" />
+            {past7Days.map((day, idx) => (
+              <div key={idx} className="flex flex-col items-center gap-1">
+                <span className={`font-mono text-[10px] ${day.isToday ? "text-primary font-bold" : "text-text-muted"}`}>
+                  {day.label[0]}
+                </span>
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center font-mono text-xs transition-colors ${
+                    day.active
+                      ? "bg-status-warning/20 text-status-warning font-bold shadow-[0_0_8px_rgba(245,158,11,0.25)]"
+                      : "bg-surface-container text-text-muted/40"
+                  }`}
+                  title={`${day.label}: ${day.active ? "Activity recorded" : "No submissions"}`}
+                >
+                  {day.active ? <Check className="h-3.5 w-3.5" /> : "•"}
                 </div>
               </div>
             ))}
-            {/* Saturday (Today) */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="font-mono text-[10px] text-text-primary font-bold">S</span>
-              <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-mono text-xs font-bold animate-pulse shadow-[0_0_14px_rgba(225,29,72,0.6)]">
-                ⚡
-              </div>
-            </div>
-            {/* Sunday */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="font-mono text-[10px] text-text-muted">S</span>
-              <div className="w-7 h-7 rounded-full bg-surface-container text-text-muted flex items-center justify-center font-mono text-xs">
-                •
-              </div>
-            </div>
           </div>
 
-          {/* Streak Safeguard Pill */}
-          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container-low mb-4 border border-white/5">
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5 text-text-secondary" />
-              <span className="text-xs text-text-primary font-medium">1 Freeze Shield Active</span>
-            </div>
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-container text-tertiary">
-              READY
-            </span>
+          {/* Real Metrics Summary */}
+          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container-low mb-3 border border-white/5 text-xs">
+            <span className="text-text-secondary">Total Runs</span>
+            <span className="font-mono font-semibold text-text-primary">{totalSubmissions}</span>
           </div>
         </div>
 
-        {/* Milestone Progress */}
         <div>
-          <div className="flex justify-between items-center mb-1.5 text-xs">
-            <span className="text-text-secondary font-sans">21-Day Titan League</span>
-            <span className="font-mono text-text-primary font-semibold">14 / 21 Days</span>
+          <div className="flex justify-between items-center mb-1 text-xs">
+            <span className="text-text-muted">Solved Ratio</span>
+            <span className="font-mono text-text-primary font-semibold">
+              {solvedCount} / {totalQuestions}
+            </span>
           </div>
           <div className="w-full h-1.5 rounded-full bg-surface-container overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-status-warning to-primary-container rounded-full"
-              style={{ width: "66.6%" }}
+              className="h-full bg-gradient-to-r from-status-warning to-primary-container rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(percentSolved, 100)}%` }}
             />
           </div>
         </div>
@@ -215,12 +215,12 @@ export default function StatsOverview({
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-sm font-bold text-text-primary">Solved Portfolio</h3>
-            <span className="text-sm">🎯</span>
+            <Award className="h-4 w-4 text-tertiary" />
           </div>
 
           {/* Radial Progress & High-Level Stat */}
           <div className="flex items-center gap-4 mb-4">
-            <div className="relative w-18 h-18 shrink-0">
+            <div className="relative w-16 h-16 shrink-0">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                 <path
                   className="text-surface-container-highest"
@@ -240,7 +240,7 @@ export default function StatsOverview({
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="font-mono text-base font-bold text-text-primary leading-none">
+                <span className="font-mono text-sm font-bold text-text-primary leading-none">
                   {solvedCount}
                 </span>
                 <span className="font-mono text-[9px] text-text-muted mt-0.5">
@@ -253,7 +253,7 @@ export default function StatsOverview({
               <span className="font-display text-2xl font-bold tracking-tight text-text-primary">
                 {percentSolved}%
               </span>
-              <span className="text-xs text-text-muted font-sans">Mastery Completion</span>
+              <span className="text-xs text-text-muted font-sans">Solved Completion</span>
             </div>
           </div>
 
@@ -292,7 +292,7 @@ export default function StatsOverview({
         </div>
 
         <div className="pt-3 flex items-center justify-between text-xs border-t border-white/5 mt-2">
-          <span className="text-text-muted font-sans">Global Acceptance</span>
+          <span className="text-text-muted font-sans">User Acceptance Rate</span>
           <span className="font-mono font-bold text-status-accepted">{acceptanceRate}%</span>
         </div>
       </div>

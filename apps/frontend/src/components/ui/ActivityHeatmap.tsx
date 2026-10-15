@@ -6,10 +6,7 @@ interface ActivityHeatmapProps {
 }
 
 export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapProps) {
-  // Generate 52 weeks x 7 days
-  const weeks = useMemo(() => {
-    // Generate deterministic heatmap data
-    const grid: number[][] = [];
+  const { weeks, totalRuns, activeStreak, activeDays, monthLabels } = useMemo(() => {
     const colorLevels = [
       "#1b1b1f", // Level 0: empty
       "#35151e", // Level 1: subtle wine
@@ -18,24 +15,90 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
       "#e11d48", // Level 4: bright wine/crimson
     ];
 
+    // Map date strings (YYYY-MM-DD) to count
+    const dateCounts = new Map<string, number>();
+    for (const sub of submissions) {
+      if (!sub.createdAt) continue;
+      const d = new Date(sub.createdAt);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      dateCounts.set(key, (dateCounts.get(key) || 0) + 1);
+    }
+
+    // Build 52 weeks ending today (Sunday through Saturday columns)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // End on current week Saturday
+    const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
+    const daysToSaturday = 6 - dayOfWeek;
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + daysToSaturday);
+
+    // Start 52 weeks before (52 * 7 = 364 days)
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - (52 * 7 - 1));
+
+    const grid: { level: number; dateStr: string; count: number }[][] = [];
+    const months: { label: string; colIdx: number }[] = [];
+    let lastMonth = -1;
+
+    const curr = new Date(startDate);
     for (let w = 0; w < 52; w++) {
-      const col: number[] = [];
+      const col: { level: number; dateStr: string; count: number }[] = [];
       for (let d = 0; d < 7; d++) {
-        // pseudo-random seed based on week and day for natural activity pattern
-        const seed = (w * 7 + d * 13 + (w % 5) * 17) % 100;
+        const key = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, "0")}-${String(curr.getDate()).padStart(2, "0")}`;
+        const count = dateCounts.get(key) || 0;
+
         let level = 0;
-        if (seed > 78) level = 4;
-        else if (seed > 60) level = 3;
-        else if (seed > 42) level = 2;
-        else if (seed > 25) level = 1;
-        col.push(level);
+        if (count >= 7) level = 4;
+        else if (count >= 4) level = 3;
+        else if (count >= 2) level = 2;
+        else if (count >= 1) level = 1;
+
+        if (d === 0 && curr.getMonth() !== lastMonth) {
+          months.push({
+            label: curr.toLocaleString("default", { month: "short" }),
+            colIdx: w,
+          });
+          lastMonth = curr.getMonth();
+        }
+
+        col.push({ level, dateStr: key, count });
+        curr.setDate(curr.getDate() + 1);
       }
       grid.push(col);
     }
-    return { grid, colorLevels };
-  }, []);
 
-  const totalRuns = submissions.length > 0 ? submissions.length + 842 : 842;
+    // Compute active streak leading up to today
+    let streak = 0;
+    const checkDate = new Date(today);
+    const todayKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+    const todayHasRuns = (dateCounts.get(todayKey) || 0) > 0;
+
+    if (!todayHasRuns) {
+      // Check if streak was active as of yesterday
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    while (true) {
+      const k = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
+      if ((dateCounts.get(k) || 0) > 0) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return {
+      weeks: { grid, colorLevels },
+      totalRuns: submissions.length,
+      activeStreak: streak,
+      activeDays: dateCounts.size,
+      monthLabels: months,
+    };
+  }, [submissions]);
 
   return (
     <section className="bg-surface-elevated rounded-xl p-6 shadow-xl flex flex-col gap-4 border border-white/5 mb-6">
@@ -46,7 +109,7 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
             365-Day Activity Ledger
           </h3>
           <p className="text-xs text-text-muted mt-0.5 font-sans">
-            Continuous evaluation record synced from Atelier Live Judge
+            Continuous evaluation record synced from your live judge submissions
           </p>
         </div>
 
@@ -57,13 +120,15 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
           </div>
           <span className="text-text-muted">•</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-text-muted">Active Streak:</span>
-            <span className="text-status-warning font-semibold">14 days</span>
+            <span className="text-text-muted">Active Days:</span>
+            <span className="text-primary font-semibold">{activeDays}</span>
           </div>
           <span className="text-text-muted">•</span>
           <div className="flex items-center gap-1.5">
-            <span className="text-text-muted">Longest:</span>
-            <span className="text-tertiary font-semibold">42 days</span>
+            <span className="text-text-muted">Current Streak:</span>
+            <span className="text-status-warning font-semibold">
+              {activeStreak} {activeStreak === 1 ? "day" : "days"}
+            </span>
           </div>
         </div>
       </div>
@@ -72,19 +137,16 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
       <div className="w-full overflow-x-auto pb-1">
         <div className="min-w-[840px] flex flex-col gap-1.5">
           {/* Month Labels */}
-          <div className="grid grid-cols-12 text-center pl-8 text-text-muted font-mono text-[10px] uppercase tracking-wider">
-            <span>Jan</span>
-            <span>Feb</span>
-            <span>Mar</span>
-            <span>Apr</span>
-            <span>May</span>
-            <span>Jun</span>
-            <span>Jul</span>
-            <span>Aug</span>
-            <span>Sep</span>
-            <span>Oct</span>
-            <span>Nov</span>
-            <span>Dec</span>
+          <div className="relative h-4 text-text-muted font-mono text-[10px] uppercase tracking-wider pl-8">
+            {monthLabels.map((m, idx) => (
+              <span
+                key={idx}
+                className="absolute"
+                style={{ left: `${32 + m.colIdx * 15.2}px` }}
+              >
+                {m.label}
+              </span>
+            ))}
           </div>
 
           {/* Matrix Rows with Day Labels */}
@@ -99,7 +161,7 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
               <svg className="w-full h-26" fill="none" viewBox="0 0 832 110" xmlns="http://www.w3.org/2000/svg">
                 {weeks.grid.map((col, colIdx) => (
                   <g key={colIdx}>
-                    {col.map((level, rowIdx) => (
+                    {col.map((cell, rowIdx) => (
                       <rect
                         key={rowIdx}
                         x={colIdx * 16}
@@ -107,10 +169,10 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
                         width="11.5"
                         height="11.5"
                         rx="2"
-                        fill={weeks.colorLevels[level]}
-                        className="transition-colors hover:stroke-white/40 hover:stroke-[1.5]"
+                        fill={weeks.colorLevels[cell.level]}
+                        className="transition-colors hover:stroke-white/60 hover:stroke-[1.5]"
                       >
-                        <title>{`Activity: Level ${level}`}</title>
+                        <title>{`${cell.count} ${cell.count === 1 ? "submission" : "submissions"} on ${cell.dateStr}`}</title>
                       </rect>
                     ))}
                   </g>
@@ -119,17 +181,24 @@ export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapPro
             </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex items-center justify-end gap-1.5 text-[10px] text-text-muted font-mono pt-1">
-            <span>Less</span>
-            {weeks.colorLevels.map((c, i) => (
-              <span
-                key={i}
-                className="w-2.5 h-2.5 rounded-[2px]"
-                style={{ backgroundColor: c }}
-              />
-            ))}
-            <span>More</span>
+          {/* Legend & Empty State Helper */}
+          <div className="flex items-center justify-between text-[10px] text-text-muted font-mono pt-1">
+            <span>
+              {totalRuns === 0
+                ? "No submissions logged yet. Solve a problem to begin your activity record!"
+                : `${totalRuns} total evaluations recorded across 52 weeks`}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span>Less</span>
+              {weeks.colorLevels.map((c, i) => (
+                <span
+                  key={i}
+                  className="w-2.5 h-2.5 rounded-[2px]"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+              <span>More</span>
+            </div>
           </div>
         </div>
       </div>

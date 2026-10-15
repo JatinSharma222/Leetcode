@@ -6,14 +6,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   Shuffle,
-  Tag,
-  Sparkles,
+  Star,
 } from "lucide-react";
 import Navbar from "@/components/ui/Navbar";
 import StatsOverview from "@/components/ui/StatsOverview";
 import ActivityHeatmap from "@/components/ui/ActivityHeatmap";
 import type { Question, Submission } from "@/lib/types";
-import { fetchQuestions, fetchUserSubmissions } from "@/lib/api";
+import { fetchQuestions, fetchUserSubmissions, getBookmarkedProblemIds, toggleBookmarkedProblem } from "@/lib/api";
 
 const DIFFICULTY_MAP: Record<string, { label: "Easy" | "Medium" | "Hard"; color: string; bg: string }> = {
   "sum-two-numbers": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
@@ -46,12 +45,13 @@ export default function Dashboard() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState<"All" | "Easy" | "Medium" | "Hard">("All");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Solved" | "Unsolved">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Solved" | "Unsolved" | "Bookmarked">("All");
 
   useEffect(() => {
     async function loadData() {
@@ -64,6 +64,7 @@ export default function Dashboard() {
         ]);
         setQuestions(questionsData);
         setSubmissions(submissionsData);
+        setBookmarkedIds(new Set(getBookmarkedProblemIds()));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load problems.");
       } finally {
@@ -72,6 +73,24 @@ export default function Dashboard() {
     }
     loadData();
   }, []);
+
+  // Cmd+K shortcut to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleToggleBookmark = (problemId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleBookmarkedProblem(problemId);
+    setBookmarkedIds(new Set(getBookmarkedProblemIds()));
+  };
 
   const solvedQuestionIds = useMemo(
     () => new Set(submissions.filter((s) => s.status === "Success").map((s) => s.questionId)),
@@ -88,10 +107,18 @@ export default function Dashboard() {
   const hardSolved = hardQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
 
   const acceptanceRate = useMemo(() => {
-    if (submissions.length === 0) return 78.2;
+    if (submissions.length === 0) return 0;
     const successful = submissions.filter((s) => s.status === "Success").length;
     return Math.round((successful / submissions.length) * 1000) / 10;
   }, [submissions]);
+
+  // Deterministic daily challenge based on day of year
+  const dailyQuestion = useMemo(() => {
+    if (questions.length === 0) return null;
+    const now = new Date();
+    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+    return questions[dayOfYear % questions.length] || questions[0] || null;
+  }, [questions]);
 
   // Filtered problems list
   const filteredQuestions = useMemo(() => {
@@ -108,10 +135,11 @@ export default function Dashboard() {
       const isSolved = solvedQuestionIds.has(q.id);
       if (statusFilter === "Solved" && !isSolved) return false;
       if (statusFilter === "Unsolved" && isSolved) return false;
+      if (statusFilter === "Bookmarked" && !bookmarkedIds.has(q.id)) return false;
 
       return true;
     });
-  }, [questions, searchQuery, difficultyFilter, statusFilter, solvedQuestionIds]);
+  }, [questions, searchQuery, difficultyFilter, statusFilter, solvedQuestionIds, bookmarkedIds]);
 
   const handlePickRandom = () => {
     if (questions.length === 0) return;
@@ -140,19 +168,21 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* SECTION 1: Gamified Hero & Momentum Grid */}
+        {/* SECTION 1: Performance & Streak Overview */}
         <StatsOverview
-          totalQuestions={questions.length || 10}
+          totalQuestions={questions.length}
           solvedCount={solvedQuestionIds.size}
           totalSubmissions={submissions.length}
           acceptanceRate={acceptanceRate}
           easySolved={easySolved}
-          easyTotal={easyQuestions.length || 7}
+          easyTotal={easyQuestions.length}
           mediumSolved={mediumSolved}
-          mediumTotal={mediumQuestions.length || 3}
+          mediumTotal={mediumQuestions.length}
           hardSolved={hardSolved}
-          hardTotal={hardQuestions.length || 1}
-          dailyQuestion={questions[0] || null}
+          hardTotal={hardQuestions.length}
+          dailyQuestion={dailyQuestion}
+          isDailySolved={dailyQuestion ? solvedQuestionIds.has(dailyQuestion.id) : false}
+          submissions={submissions}
         />
 
         {/* SECTION 2: 365-Day Activity Ledger & Submission Heatmap */}
@@ -198,7 +228,7 @@ export default function Dashboard() {
 
             {/* Status Filter */}
             <div className="flex items-center rounded-lg border border-white/5 bg-surface-elevated p-1 text-xs">
-              {(["All", "Solved", "Unsolved"] as const).map((st) => (
+              {(["All", "Solved", "Unsolved", "Bookmarked"] as const).map((st) => (
                 <button
                   key={st}
                   type="button"
@@ -231,7 +261,7 @@ export default function Dashboard() {
           <table className="w-full text-left text-sm border-collapse">
             <thead className="border-b border-white/5 bg-surface-container-low/60 text-[11px] font-mono font-semibold uppercase tracking-wider text-text-muted">
               <tr>
-                <th scope="col" className="px-5 py-3 w-16 text-center">Status</th>
+                <th scope="col" className="px-4 py-3 w-14 text-center">Status</th>
                 <th scope="col" className="px-5 py-3">Challenge</th>
                 <th scope="col" className="px-5 py-3 w-28">Difficulty</th>
                 <th scope="col" className="px-5 py-3 hidden md:table-cell w-44">Categories</th>
@@ -261,6 +291,7 @@ export default function Dashboard() {
               ) : (
                 filteredQuestions.map((q, idx) => {
                   const isSolved = solvedQuestionIds.has(q.id);
+                  const isBookmarked = bookmarkedIds.has(q.id);
                   const diffObj = DIFFICULTY_MAP[q.id] || {
                     label: "Easy",
                     color: "text-status-accepted",
@@ -274,13 +305,23 @@ export default function Dashboard() {
                       className="group transition-colors hover:bg-surface-hover/50 cursor-pointer"
                       onClick={() => navigate(`/problem/${q.id}`)}
                     >
-                      {/* Solved Status Icon */}
-                      <td className="px-5 py-3.5 text-center align-middle">
-                        {isSolved ? (
-                          <CheckCircle2 className="h-4 w-4 text-status-accepted inline" />
-                        ) : (
-                          <span className="text-text-muted/30 text-xs font-mono">—</span>
-                        )}
+                      {/* Solved Status & Bookmark Icon */}
+                      <td className="px-4 py-3.5 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {isSolved ? (
+                            <CheckCircle2 className="h-4 w-4 text-status-accepted shrink-0" />
+                          ) : (
+                            <span className="text-text-muted/30 text-xs font-mono w-4 shrink-0">—</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleBookmark(q.id, e)}
+                            title={isBookmarked ? "Bookmarked problem" : "Bookmark problem"}
+                            className="text-text-muted hover:text-status-warning transition-colors cursor-pointer"
+                          >
+                            <Star className={`h-3.5 w-3.5 ${isBookmarked ? "text-status-warning fill-current" : ""}`} />
+                          </button>
+                        </div>
                       </td>
 
                       {/* Problem Title & Number */}
