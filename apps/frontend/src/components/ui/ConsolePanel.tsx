@@ -546,27 +546,21 @@ export default function ConsolePanel({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-4 font-mono text-xs">
-                      <div className="flex items-center gap-1">
-                        <span className="text-text-muted">Runtime:</span>
-                        <span className="text-text-primary font-bold">18 ms</span>
-                        <span className="text-status-accepted text-[11px] font-semibold">(Beats 94.2%)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-text-muted">Memory:</span>
-                        <span className="text-text-primary font-bold">16.2 MB</span>
-                        <span className="text-status-accepted text-[11px] font-semibold">(Beats 88.5%)</span>
-                      </div>
+                    <div className="flex items-center gap-3 font-mono text-xs">
+                      <span className="text-text-muted">Pass Rate:</span>
+                      <span className={`font-bold ${isAccepted ? "text-status-accepted" : "text-status-warning"}`}>
+                        {Math.round((passedTests / Math.max(totalTests, 1)) * 100)}%
+                      </span>
                     </div>
                   </div>
 
-                  {/* Visual TestStrip (50 Micro Jewels) */}
+                  {/* Visual TestStrip (Micro Jewels) */}
                   <div className="bg-surface-base p-3 rounded-lg space-y-2 border border-white/5">
                     <div className="flex items-center justify-between font-mono text-[10px] text-text-muted uppercase">
                       <span className={`flex items-center gap-1 ${isAccepted ? "text-status-accepted font-semibold" : "text-text-primary"}`}>
                         {passedTests} / {totalTests} Test Cases Passed
                       </span>
-                      <span className="text-text-secondary">Execution Latency: 0.12s total</span>
+                      <span className="text-text-secondary">Full Suite Evaluation</span>
                     </div>
 
                     {/* Micro Jewels Grid */}

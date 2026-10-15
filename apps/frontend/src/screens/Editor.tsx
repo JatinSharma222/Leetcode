@@ -9,7 +9,7 @@ import {
   FileText,
   Lightbulb,
   History,
-  MessagesSquare,
+  Sparkles,
   Star,
   CheckCircle2,
   Copy,
@@ -18,18 +18,24 @@ import {
   RotateCcw,
   Pause,
   Timer,
+  Clock,
+  BookOpen,
 } from "lucide-react";
 import CodeEditor from "@/components/ui/CodeEditor";
 import ConsolePanel, { type SubmissionResultView } from "@/components/ui/ConsolePanel";
 import type { Question, Submission, RunResultResponse } from "@/lib/types";
 import { getCodeTemplate } from "@/lib/codeTemplates";
+import { getProblemMetadata } from "@/lib/problemMeta";
 import {
   ApiError,
   fetchQuestionById,
   fetchQuestions,
+  fetchUserSubmissions,
+  getBookmarkedProblemIds,
   pollForSubmissionResult,
   runCodeAPI,
   submitCodeAPI,
+  toggleBookmarkedProblem,
 } from "@/lib/api";
 
 const LANGUAGES = [
@@ -62,7 +68,7 @@ export default function Editor() {
 
   const [language, setLanguage] = useState<string>("python");
   const [code, setCode] = useState<string>("");
-  const [activeLeftTab, setActiveLeftTab] = useState<"description" | "hints" | "submissions" | "discussion">("description");
+  const [activeLeftTab, setActiveLeftTab] = useState<"description" | "hints" | "submissions" | "editorial">("description");
   const [isBookmarked, setIsBookmarked] = useState(false);
 
   // Stopwatch / Timer state
@@ -93,19 +99,22 @@ export default function Editor() {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
 
-  // Load question and all questions list
+  // Load question, past user submissions, and all questions list
   useEffect(() => {
     async function loadData() {
       if (!id) return;
       setLoading(true);
       setLoadError(null);
       try {
-        const [qData, list] = await Promise.all([
+        const [qData, list, userSubs] = await Promise.all([
           fetchQuestionById(id),
           fetchQuestions().catch(() => []),
+          fetchUserSubmissions().catch(() => []),
         ]);
         setQuestion(qData);
         setAllQuestions(list);
+        setPastSubmissions(userSubs.filter((s) => s.questionId === id));
+        setIsBookmarked(getBookmarkedProblemIds().includes(id));
         if (qData) {
           setCode(getCodeTemplate(language, qData.id));
           setCustomInputs([]);
@@ -118,7 +127,13 @@ export default function Editor() {
       }
     }
     loadData();
-  }, [id, language]);
+  }, [id]);
+
+  const handleToggleBookmark = () => {
+    if (!question) return;
+    const next = toggleBookmarkedProblem(question.id);
+    setIsBookmarked(next);
+  };
 
   // Session timer ticker
   useEffect(() => {
@@ -271,6 +286,9 @@ export default function Editor() {
   const prevQuestion = currentIndex > 0 ? allQuestions[currentIndex - 1] : null;
   const nextQuestion = currentIndex >= 0 && currentIndex < allQuestions.length - 1 ? allQuestions[currentIndex + 1] : null;
   const diff = question?.id ? DIFFICULTY_MAP[question.id] || { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" } : null;
+  const metadata = getProblemMetadata(question?.id);
+  const isSolved = pastSubmissions.some((s) => s.status === "Success");
+  const hasAttempted = pastSubmissions.length > 0;
 
   if (loading) {
     return (
@@ -483,7 +501,7 @@ export default function Editor() {
               <Lightbulb className="h-3.5 w-3.5 text-status-warning" />
               <span>Hints</span>
               <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-surface-container text-text-muted">
-                3
+                {metadata.hints.length}
               </span>
               {activeLeftTab === "hints" && (
                 <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
@@ -501,7 +519,7 @@ export default function Editor() {
             >
               <History className="h-3.5 w-3.5 text-status-accepted" />
               <span>Submissions</span>
-              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-status-accepted/10 text-status-accepted">
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-status-accepted/10 text-status-accepted font-semibold">
                 {pastSubmissions.length}
               </span>
               {activeLeftTab === "submissions" && (
@@ -511,19 +529,16 @@ export default function Editor() {
 
             <button
               type="button"
-              onClick={() => setActiveLeftTab("discussion")}
+              onClick={() => setActiveLeftTab("editorial")}
               className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
-                activeLeftTab === "discussion"
+                activeLeftTab === "editorial"
                   ? "text-text-primary font-semibold"
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              <MessagesSquare className="h-3.5 w-3.5 text-tertiary" />
-              <span>Discussion</span>
-              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-surface-container text-text-muted">
-                48
-              </span>
-              {activeLeftTab === "discussion" && (
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>Editorial</span>
+              {activeLeftTab === "editorial" && (
                 <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
               )}
             </button>
@@ -541,21 +556,31 @@ export default function Editor() {
                     </h2>
                     <button
                       type="button"
-                      onClick={() => setIsBookmarked((prev) => !prev)}
-                      className="text-text-muted hover:text-status-warning transition-colors cursor-pointer"
-                      title="Bookmark Problem"
+                      onClick={handleToggleBookmark}
+                      className="text-text-muted hover:text-status-warning transition-colors cursor-pointer p-1 rounded hover:bg-surface-base"
+                      title={isBookmarked ? "Remove Bookmark" : "Bookmark Problem"}
                     >
                       <Star className={`h-4 w-4 ${isBookmarked ? "text-status-warning fill-current" : ""}`} />
                     </button>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 font-mono text-xs pt-0.5">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-medium">
-                      <CheckCircle2 className="h-3 w-3" /> Solved
-                    </span>
-                    <span className="text-text-muted">3.2M Submissions</span>
+                    {isSolved ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-medium">
+                        <CheckCircle2 className="h-3 w-3" /> Solved
+                      </span>
+                    ) : hasAttempted ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-warning/10 text-status-warning font-medium">
+                        <Clock className="h-3 w-3" /> Attempted
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-text-muted font-medium">
+                        Unsolved
+                      </span>
+                    )}
+                    <span className="text-text-muted">{question.testCases?.length || 0} Testcases</span>
                     <span className="text-text-muted">•</span>
-                    <span className="text-text-muted">Acceptance: 59.2%</span>
+                    <span className="text-text-muted">{pastSubmissions.length} Submissions Logged</span>
                   </div>
                 </div>
 
@@ -623,37 +648,41 @@ export default function Editor() {
 
             {/* HINTS TAB */}
             {activeLeftTab === "hints" && (
-              <div className="space-y-3 font-sans">
-                <h3 className="font-display text-base font-bold text-text-primary">Progressive Hints</h3>
-                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
-                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 1: Initial Invariant</p>
-                  <p className="text-xs text-text-muted">Consider using two pointers at the boundaries to bound the solution space.</p>
+              <div className="space-y-4 font-sans">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base font-bold text-text-primary">Progressive Hints</h3>
+                  <span className="font-mono text-xs text-text-muted">{metadata.hints.length} hints available</span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
-                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 2: Monotonic State</p>
-                  <p className="text-xs text-text-muted">Track the running maximum from both sides to compute subproblem answers in O(1) space.</p>
-                </div>
-                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
-                  <p className="font-mono text-xs font-semibold text-status-warning">Hint 3: Boundary Contraction</p>
-                  <p className="text-xs text-text-muted">Advance whichever pointer holds the lower boundary constraint to preserve optimal substructure.</p>
+                <div className="space-y-3">
+                  {metadata.hints.map((hint, index) => (
+                    <div key={index} className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1.5 shadow-xs">
+                      <p className="font-mono text-xs font-semibold text-status-warning">Hint {index + 1}</p>
+                      <p className="text-xs text-text-secondary leading-relaxed">{hint}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
             {/* SUBMISSIONS TAB */}
             {activeLeftTab === "submissions" && (
-              <div className="space-y-3 font-sans">
-                <h3 className="font-display text-base font-bold text-text-primary">Submissions History</h3>
+              <div className="space-y-4 font-sans">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base font-bold text-text-primary">Submissions History</h3>
+                  <span className="font-mono text-xs text-text-muted">{pastSubmissions.length} logged</span>
+                </div>
                 {pastSubmissions.length === 0 ? (
-                  <p className="text-xs text-text-muted py-4">No evaluations logged yet for this challenge.</p>
+                  <p className="text-xs text-text-muted py-6 text-center bg-surface-base rounded-xl border border-white/5">
+                    No submissions logged yet for this challenge. Click Submit to evaluate your solution.
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {pastSubmissions.map((sub) => (
                       <div
                         key={sub.id}
-                        className="flex items-center justify-between rounded-xl border border-white/5 bg-surface-base p-3 hover:border-white/20 transition-colors shadow-xs"
+                        className="rounded-xl border border-white/5 bg-surface-base p-3.5 hover:border-white/20 transition-colors shadow-xs space-y-2"
                       >
-                        <div className="space-y-1">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span
                               className={`flex items-center gap-1 text-xs font-mono font-bold ${
@@ -661,19 +690,32 @@ export default function Editor() {
                               }`}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              {sub.status === "Success" ? "Accepted" : sub.status}
+                              {sub.status === "Success" ? "Accepted" : sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
                             </span>
-                            <span className="text-[10px] text-text-muted font-mono bg-surface-elevated border border-white/5 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-text-muted font-mono bg-surface-elevated border border-white/5 px-1.5 py-0.5 rounded uppercase">
                               {sub.language}
                             </span>
                           </div>
-                          <p className="text-[10px] text-text-muted font-mono">
-                            {new Date(sub.createdAt).toLocaleString()}
-                          </p>
+                          <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-elevated text-text-primary border border-white/5">
+                            {sub.passedCount}/{sub.totalCount} Passed
+                          </span>
                         </div>
-                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-elevated text-text-primary border border-white/5">
-                          {sub.passedCount}/{sub.totalCount} Passed
-                        </span>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-mono text-text-muted">
+                          <span>{new Date(sub.createdAt).toLocaleString()}</span>
+                          {sub.code && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCode(sub.code);
+                                if (sub.language) setLanguage(sub.language);
+                              }}
+                              className="text-primary hover:underline hover:text-on-primary-container transition-colors cursor-pointer"
+                            >
+                              Load Into Editor
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -681,16 +723,38 @@ export default function Editor() {
               </div>
             )}
 
-            {/* DISCUSSION TAB */}
-            {activeLeftTab === "discussion" && (
-              <div className="space-y-3 font-sans">
-                <h3 className="font-display text-base font-bold text-text-primary">Community Paradigms</h3>
-                <div className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-text-primary">Optimal O(N) Two-Pointer Approach</span>
-                    <span className="font-mono text-status-accepted">⚡ 18ms</span>
+            {/* EDITORIAL TAB */}
+            {activeLeftTab === "editorial" && (
+              <div className="space-y-4 font-sans">
+                <div>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-primary font-semibold">
+                    Algorithmic Approach
+                  </span>
+                  <h3 className="font-display text-base font-bold text-text-primary mt-0.5">
+                    {metadata.approach}
+                  </h3>
+                </div>
+
+                {/* Complexity Specs */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3 rounded-xl bg-surface-base border border-white/5 space-y-1 shadow-xs">
+                    <span className="font-mono text-[10px] uppercase text-text-muted font-semibold">Time Complexity</span>
+                    <p className="font-mono text-sm font-bold text-status-accepted">{metadata.timeComplexity}</p>
                   </div>
-                  <p className="text-xs text-text-muted">Instead of pre-allocating prefix and suffix arrays, maintain running peaks as pointers contract inward.</p>
+                  <div className="p-3 rounded-xl bg-surface-base border border-white/5 space-y-1 shadow-xs">
+                    <span className="font-mono text-[10px] uppercase text-text-muted font-semibold">Space Complexity</span>
+                    <p className="font-mono text-sm font-bold text-tertiary">{metadata.spaceComplexity}</p>
+                  </div>
+                </div>
+
+                {/* Detailed Walkthrough */}
+                <div className="p-4 rounded-xl bg-surface-base border border-white/5 space-y-2 shadow-xs">
+                  <h4 className="font-mono text-xs uppercase tracking-wider text-text-muted font-semibold">
+                    Explanation &amp; Correctness
+                  </h4>
+                  <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">
+                    {metadata.explanation}
+                  </p>
                 </div>
               </div>
             )}
