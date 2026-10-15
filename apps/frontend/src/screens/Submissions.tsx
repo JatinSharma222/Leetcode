@@ -13,11 +13,15 @@ import {
   AlertTriangle,
   GitFork,
   FileCode2,
+  Cpu,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import MonacoEditor from "@monaco-editor/react";
 import Navbar from "@/components/ui/Navbar";
 import type { Submission } from "@/lib/types";
 import { ApiError, fetchQuestions, fetchUserSubmissions } from "@/lib/api";
+import { getProblemMetadata } from "@/lib/problemMeta";
 
 export default function Submissions() {
   const navigate = useNavigate();
@@ -41,7 +45,7 @@ export default function Submissions() {
         setSubmissions(subs);
         setQuestionTitles(Object.fromEntries(questions.map((q) => [q.id, q.title])));
         if (subs.length > 0) {
-          setSelectedSub(subs[0]);
+          setSelectedSub(subs[0] ?? null);
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
@@ -91,6 +95,43 @@ export default function Submissions() {
 
   const acceptedCount = submissions.filter((s) => s.status === "Success").length;
   const acceptanceRate = submissions.length > 0 ? Math.round((acceptedCount / submissions.length) * 1000) / 10 : 0;
+
+  const recentCount = useMemo(() => {
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return submissions.filter((s) => new Date(s.createdAt).getTime() >= oneWeekAgo).length;
+  }, [submissions]);
+
+  const solvedProblemIds = useMemo(() => {
+    return new Set(submissions.filter((s) => s.status === "Success").map((s) => s.questionId));
+  }, [submissions]);
+
+  const primaryLanguage = useMemo(() => {
+    if (submissions.length === 0) return { name: "None", percent: 0 };
+    const counts: Record<string, number> = {};
+    for (const s of submissions) {
+      const lang = s.language.toLowerCase();
+      counts[lang] = (counts[lang] || 0) + 1;
+    }
+    let topLang = "python";
+    let topCount = 0;
+    for (const [lang, count] of Object.entries(counts)) {
+      if (count > topCount) {
+        topCount = count;
+        topLang = lang;
+      }
+    }
+    const labelMap: Record<string, string> = {
+      python: "Python 3",
+      cpp: "C++ 17",
+      javascript: "JavaScript",
+    };
+    return {
+      name: labelMap[topLang] || topLang.toUpperCase(),
+      percent: Math.round((topCount / submissions.length) * 100),
+    };
+  }, [submissions]);
+
+  const selectedEditorial = selectedSub ? getProblemMetadata(selectedSub.questionId) : null;
 
   return (
     <div className="min-h-screen bg-surface-base text-text-primary font-sans">
@@ -154,11 +195,11 @@ export default function Submissions() {
             </div>
             <div className="flex items-baseline gap-2">
               <span className="font-display text-3xl font-bold text-text-primary">{submissions.length}</span>
-              <span className="font-mono text-xs text-tertiary font-medium">+18 this wk</span>
+              <span className="font-mono text-xs text-tertiary font-medium">{recentCount} this wk</span>
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
               <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-              <span>Across unique algorithmic problems</span>
+              <span>Evaluated across test suites</span>
             </div>
           </div>
 
@@ -181,43 +222,44 @@ export default function Submissions() {
             </div>
           </div>
 
-          {/* Card 3 */}
+          {/* Card 3: Unique Problems Solved */}
           <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
             <div className="flex items-center justify-between text-text-muted mb-2">
               <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Fastest Runtime
+                Challenges Solved
               </span>
-              <span className="text-status-warning text-xs">⚡</span>
+              <Layers className="h-4 w-4 text-primary" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="font-display text-3xl font-bold text-text-primary">
-                18<span className="text-sm font-normal text-text-muted ml-0.5 font-sans">ms</span>
+                {solvedProblemIds.size}
               </span>
               <span className="font-mono text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary-container/20 text-primary font-medium">
-                Record
+                Unique
               </span>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-text-muted truncate">
-              <span className="truncate">Two Sum / Substring</span>
-              <span className="font-mono text-text-secondary shrink-0">O(N)</span>
+              <span>{Object.keys(questionTitles).length || 10} Total catalog challenges</span>
             </div>
           </div>
 
-          {/* Card 4 */}
+          {/* Card 4: Primary Language */}
           <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
             <div className="flex items-center justify-between text-text-muted mb-2">
               <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Average Percentile
+                Primary Language
               </span>
-              <Clock className="h-4 w-4 text-primary" />
+              <Cpu className="h-4 w-4 text-status-warning" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="font-display text-3xl font-bold text-text-primary">94.2%</span>
-              <span className="font-mono text-xs text-status-accepted font-semibold">Top 5% Tier</span>
+              <span className="font-display text-2xl font-bold text-text-primary">{primaryLanguage.name}</span>
+              {submissions.length > 0 && (
+                <span className="font-mono text-xs text-status-accepted font-semibold">{primaryLanguage.percent}%</span>
+              )}
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="text-status-accepted text-xs">📈</span>
-              <span>Efficiency score higher than 94.2% peers</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-status-warning" />
+              <span>Most frequent evaluation target</span>
             </div>
           </div>
         </div>
@@ -302,7 +344,7 @@ export default function Submissions() {
                   <tr className="bg-surface-container-high/30 font-mono text-[10px] uppercase text-text-muted tracking-wider border-b border-white/5">
                     <th className="py-3 px-4 font-semibold">Verdict</th>
                     <th className="py-3 px-4 font-semibold">Problem</th>
-                    <th className="py-3 px-4 font-semibold">Runtime</th>
+                    <th className="py-3 px-4 font-semibold">Pass Rate</th>
                     <th className="py-3 px-4 font-semibold">Verification</th>
                     <th className="py-3 px-4 font-semibold">Language</th>
                     <th className="py-3 px-4 font-semibold">Submitted</th>
@@ -364,10 +406,11 @@ export default function Submissions() {
                             </div>
                           </td>
 
-                          {/* Runtime */}
+                          {/* Pass Rate */}
                           <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
-                            <span className="text-text-primary font-medium">18 ms</span>
-                            <span className="text-status-accepted text-[10px] ml-1.5">(94.2%)</span>
+                            <span className={`font-semibold ${sub.status === "Success" ? "text-status-accepted" : "text-text-primary"}`}>
+                              {Math.round((sub.passedCount / Math.max(sub.totalCount, 1)) * 100)}%
+                            </span>
                           </td>
 
                           {/* Verification pass count */}
@@ -427,8 +470,8 @@ export default function Submissions() {
                             : "bg-status-error/15 text-status-error"
                         }`}
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-status-accepted animate-ping" />
-                        <span>{selectedSub.status === "Success" ? "Accepted (18ms)" : selectedSub.status}</span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${selectedSub.status === "Success" ? "bg-status-accepted" : "bg-status-error"}`} />
+                        <span>{selectedSub.status === "Success" ? "Accepted" : selectedSub.status === "WrongAnswer" ? "Wrong Answer" : selectedSub.status}</span>
                       </span>
                       <span className="font-mono text-[11px] text-text-muted">
                         ID: #{selectedSub.id.slice(0, 8)}
@@ -445,7 +488,7 @@ export default function Submissions() {
                       <h3 className="font-display text-sm text-text-primary font-bold">
                         {questionTitles[selectedSub.questionId] || selectedSub.questionId}
                       </h3>
-                      <span className="text-xs text-text-muted font-mono">
+                      <span className="text-xs text-text-muted font-mono uppercase">
                         Language: {selectedSub.language}
                       </span>
                     </div>
@@ -456,68 +499,72 @@ export default function Submissions() {
                   </div>
                 </div>
 
-                {/* Benchmark Percentile Distribution Chart */}
+                {/* Verification Suite Evaluation Card */}
                 <div className="p-4 bg-surface-elevated space-y-3 border-b border-white/5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-mono text-[10px] uppercase text-text-muted tracking-wider">
-                      Runtime Distribution
+                      Verification Suite
                     </span>
-                    <span className="font-mono text-xs font-semibold text-status-accepted">
-                      You (18ms) • Beats 94.2%
+                    <span className={`font-mono text-xs font-semibold ${selectedSub.status === "Success" ? "text-status-accepted" : "text-text-primary"}`}>
+                      {selectedSub.passedCount} / {selectedSub.totalCount} Cases ({Math.round((selectedSub.passedCount / Math.max(selectedSub.totalCount, 1)) * 100)}%)
                     </span>
                   </div>
 
-                  {/* Inline Bell-Curve Distribution Histogram SVG */}
-                  <div className="relative w-full pt-1 pb-2">
-                    <svg className="w-full h-24 overflow-visible" preserveAspectRatio="none" viewBox="0 0 400 120">
-                      <defs>
-                        <linearGradient id="curveGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                          <stop offset="0%" stopColor="#E11D48" stopOpacity="0.35" />
-                          <stop offset="100%" stopColor="#E11D48" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      <line stroke="#353439" strokeDasharray="2 2" strokeWidth="1" x1="0" x2="400" y1="100" y2="100" />
-                      <line stroke="#353439" strokeDasharray="2 2" strokeWidth="1" x1="0" x2="400" y1="50" y2="50" />
-                      <path
-                        d="M 10 100 Q 60 100 80 88 T 130 50 T 180 20 T 230 40 T 290 85 T 390 100 L 390 100 L 10 100 Z"
-                        fill="url(#curveGradient)"
+                  {/* Micro Jewels Visualization */}
+                  <div
+                    className="grid gap-1 w-full pt-1"
+                    style={{
+                      gridTemplateColumns: `repeat(${Math.min(selectedSub.totalCount || 10, 25)}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {Array.from({ length: selectedSub.totalCount || 10 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-2 rounded-[1px] ${
+                          i < selectedSub.passedCount ? "bg-status-accepted" : "bg-status-error"
+                        }`}
+                        title={`Test Case ${i + 1}: ${i < selectedSub.passedCount ? "Passed" : "Failed"}`}
                       />
-                      <path
-                        d="M 10 100 Q 60 100 80 88 T 130 50 T 180 20 T 230 40 T 290 85 T 390 100"
-                        fill="none"
-                        stroke="#E11D48"
-                        strokeWidth="2"
-                      />
-                      <line stroke="#10B981" strokeLinecap="round" strokeWidth="2" x1="68" x2="68" y1="15" y2="100" />
-                      <circle cx="68" cy="18" fill="#10B981" r="4.5" stroke="#0B0B0F" strokeWidth="2" />
-                      <line stroke="#6B7280" strokeDasharray="3 3" strokeWidth="1" x1="180" x2="180" y1="20" y2="100" />
-                      <circle cx="180" cy="20" fill="#6B7280" r="3" />
-                    </svg>
-
-                    <div className="flex justify-between font-mono text-[10px] text-text-muted mt-1 px-1">
-                      <span>12ms</span>
-                      <span className="text-status-accepted font-semibold">18ms (You)</span>
-                      <span>48ms (Median)</span>
-                      <span>120ms</span>
-                      <span>240ms+</span>
-                    </div>
+                    ))}
                   </div>
 
-                  {/* Quick Compare Badges */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                    <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
-                      <span className="font-mono text-[10px] text-text-muted uppercase">Memory Rank</span>
-                      <span className="font-mono text-xs font-semibold text-text-primary mt-0.5">
-                        16.2 MB <span className="text-status-accepted text-[10px]">(88.5%)</span>
-                      </span>
+                  {/* Target Complexity & Approach Specs */}
+                  {selectedEditorial && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                      <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
+                        <span className="font-mono text-[10px] text-text-muted uppercase">Target Complexity</span>
+                        <span className="font-mono text-xs font-semibold text-text-primary mt-0.5">
+                          {selectedEditorial.timeComplexity} • {selectedEditorial.spaceComplexity}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
+                        <span className="font-mono text-[10px] text-text-muted uppercase">Algorithmic Pattern</span>
+                        <span className="font-mono text-xs font-semibold text-status-accepted mt-0.5 truncate" title={selectedEditorial.approach}>
+                          {selectedEditorial.approach}
+                        </span>
+                      </div>
                     </div>
-                    <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
-                      <span className="font-mono text-[10px] text-text-muted uppercase">Complexity</span>
-                      <span className="font-mono text-xs font-semibold text-text-primary mt-0.5">
-                        O(N) Time • O(1) Space
-                      </span>
+                  )}
+
+                  {/* Judge Output Log if present */}
+                  {selectedSub.output && (
+                    <div className="p-2.5 rounded bg-surface-base border border-white/5 space-y-1">
+                      <div className="flex items-center justify-between text-[10px] font-mono text-text-muted uppercase">
+                        <span>Judge Output:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCode(selectedSub.output || "")}
+                          className="hover:text-text-primary flex items-center gap-1 cursor-pointer font-sans normal-case"
+                        >
+                          <Copy className="h-3 w-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                      <pre className="font-mono text-xs text-text-primary whitespace-pre-wrap max-h-24 overflow-y-auto">
+                        {selectedSub.output}
+                      </pre>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Code Viewer Panel */}
