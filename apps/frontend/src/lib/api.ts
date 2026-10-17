@@ -1,6 +1,27 @@
 import type { Question, Submission, RunResultResponse } from "./types";
 
-const API_BASE_URL = (import.meta as any).env?.BUN_PUBLIC_API_URL ?? "http://localhost:3001";
+export function getApiBaseUrl(): string {
+  // 1. Explicit override via build-time or runtime environment variable
+  const envUrl = (import.meta as any).env?.BUN_PUBLIC_API_URL;
+  if (typeof envUrl === "string" && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, "");
+  }
+
+  // 2. Dynamic browser environment detection
+  if (typeof window !== "undefined" && window.location) {
+    const { hostname } = window.location;
+    // When developing locally on localhost/127.0.0.1, connect directly to backend port 3001
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:3001";
+    }
+    // When accessed through any public domain, DuckDNS, or remote IP, use relative path (same-origin Nginx proxy)
+    return "";
+  }
+
+  return "";
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export class ApiError extends Error {
   status: number;
@@ -78,6 +99,7 @@ export async function fetchCurrentUser(): Promise<{ userId: string; username: st
 }
 
 async function apiFetch(path: string, init: RequestInit = {}, requireAuth = false): Promise<any> {
+  const baseUrl = getApiBaseUrl();
   const token = getAuthToken();
   const headers: Record<string, string> = {
     ...(init.body ? { "Content-Type": "application/json" } : {}),
@@ -85,9 +107,13 @@ async function apiFetch(path: string, init: RequestInit = {}, requireAuth = fals
     ...(init.headers as Record<string, string> | undefined),
   };
 
+  const targetUrl = path.startsWith("http")
+    ? path
+    : `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+    res = await fetch(targetUrl, {
       ...init,
       headers,
       credentials: "include",
