@@ -1,15 +1,11 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { LogOut, Search, Menu, X, Code2, ListOrdered, User } from "lucide-react";
+import { LogOut, Menu, X, Code2, ListOrdered } from "lucide-react";
 import AtelierLogo from "./AtelierLogo";
 import { useAuth } from "@/context/AuthContext";
 import { getSavedUsername } from "@/lib/api";
 
-interface NavbarProps {
-  onSearchFocus?: () => void;
-}
-
-export default function Navbar({ onSearchFocus }: NavbarProps) {
+export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -72,22 +68,7 @@ export default function Navbar({ onSearchFocus }: NavbarProps) {
           </nav>
         </div>
 
-        {/* Center: Command Search Input */}
-        <div className="hidden lg:flex items-center flex-1 max-w-md mx-2">
-          <button
-            type="button"
-            onClick={onSearchFocus}
-            className="w-full flex items-center bg-surface-elevated rounded-lg px-3 py-1.5 border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-inner text-left"
-          >
-            <Search className="h-3.5 w-3.5 text-text-muted mr-2 shrink-0" />
-            <span className="text-xs text-text-muted select-none flex-1 truncate">
-              Search problems, algorithms, tags...
-            </span>
-            <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-base text-text-muted border border-white/10 select-none shadow-xs">
-              ⌘K
-            </kbd>
-          </button>
-        </div>
+
 
         {/* Right: User Status & Mobile Toggle */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
@@ -168,19 +149,7 @@ export default function Navbar({ onSearchFocus }: NavbarProps) {
       {/* Mobile Slide-down Navigation Menu */}
       {showMobileMenu && (
         <div className="md:hidden border-t border-white/5 bg-[#0E0E14] px-4 py-3 space-y-2">
-          {onSearchFocus && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowMobileMenu(false);
-                onSearchFocus();
-              }}
-              className="w-full flex items-center bg-surface-elevated rounded-lg px-3 py-2 text-xs text-text-muted border border-white/10 cursor-pointer"
-            >
-              <Search className="h-3.5 w-3.5 mr-2 shrink-0" />
-              <span>Search problems...</span>
-            </button>
-          )}
+
 
           <div className="flex flex-col gap-1 pt-1">
             <Link

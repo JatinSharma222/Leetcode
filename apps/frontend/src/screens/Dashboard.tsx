@@ -151,13 +151,9 @@ export default function Dashboard() {
     }
   };
 
-  const focusSearch = () => {
-    searchInputRef.current?.focus();
-  };
-
   return (
     <div className="min-h-screen bg-surface-base text-text-primary font-sans">
-      <Navbar onSearchFocus={focusSearch} />
+      <Navbar />
 
       <main className="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Error Alert */}
