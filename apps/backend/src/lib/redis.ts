@@ -19,3 +19,16 @@ export async function getRedisClient() {
   }
   return redisClient;
 }
+
+/**
+ * Creates a dedicated Redis client instance for blocking commands (e.g. BRPOP)
+ * so that shared connection operations (rate limiting, queue pushes) are never blocked.
+ */
+export async function createDedicatedRedisClient() {
+  const client = redisClient.duplicate();
+  client.on("error", (err) => {
+    console.error("Dedicated Redis Client Error:", err);
+  });
+  await client.connect();
+  return client;
+}

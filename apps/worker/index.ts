@@ -6,10 +6,16 @@ import { spawn } from "child_process";
 import { prisma } from "@repo/db";
 
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-const client = createClient({ url: redisUrl });
+// Dedicated client for blocking queue BRPOP operations
+const queueClient = createClient({ url: redisUrl });
+queueClient.on("error", (err) => {
+  console.error("Worker Queue Redis Client Error:", err);
+});
 
-client.on("error", (err) => {
-  console.error("Worker Redis Client Error:", err);
+// Dedicated client for pushing ephemeral results, updates, and non-blocking commands
+const resultClient = createClient({ url: redisUrl });
+resultClient.on("error", (err) => {
+  console.error("Worker Result Redis Client Error:", err);
 });
 
 const TLE_MS = 5000;
@@ -236,8 +242,11 @@ function normalize(s: string): string {
     .trim();
 }
 
-client.connect().catch((err) => {
-  console.error("Worker failed to connect to Redis initially:", err);
+queueClient.connect().catch((err) => {
+  console.error("Worker failed to connect queue client to Redis initially:", err);
+});
+resultClient.connect().catch((err) => {
+  console.error("Worker failed to connect result client to Redis initially:", err);
 });
 
 async function main() {
@@ -268,14 +277,18 @@ async function main() {
   console.log("Worker started with Docker sandboxing enabled ✓");
 
   let shuttingDown = false;
+  const WORKER_CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 4);
+  const activeJobs = new Set<Promise<void>>();
 
   // Graceful shutdown handler
   const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log("\nWorker shutting down gracefully...");
+    console.log(`\nWorker shutting down gracefully... Waiting for ${activeJobs.size} active jobs to finish.`);
     try {
-      if (client.isOpen) await client.disconnect();
+      await Promise.all(activeJobs);
+      if (queueClient.isOpen) await queueClient.disconnect();
+      if (resultClient.isOpen) await resultClient.disconnect();
       await prisma.$disconnect();
     } catch {}
     process.exit(0);
@@ -285,14 +298,19 @@ async function main() {
   process.on("SIGTERM", shutdown);
 
   while (!shuttingDown) {
+    // Throttle popping if worker is currently running at max capacity
+    if (activeJobs.size >= WORKER_CONCURRENCY) {
+      await Promise.race(activeJobs);
+    }
+
     let response: { key: string; element: string } | null = null;
     try {
-      if (!client.isOpen) {
+      if (!queueClient.isOpen) {
         await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
       // BRPOP blocks on both ephemeral run_requests and persistent problems
-      response = (await client.brPop(["run_requests", "problems"], 5)) as {
+      response = (await queueClient.brPop(["run_requests", "problems"], 5)) as {
         key: string;
         element: string;
       } | null;
@@ -314,11 +332,23 @@ async function main() {
       continue;
     }
 
-    if (response.key === "run_requests") {
-      await handleRunRequest(parsedResponse);
-    } else if (response.key === "problems") {
-      await handleSubmission(parsedResponse);
-    }
+    const currentKey = response.key;
+    const jobPromise = (async () => {
+      try {
+        if (currentKey === "run_requests") {
+          await handleRunRequest(parsedResponse);
+        } else if (currentKey === "problems") {
+          await handleSubmission(parsedResponse);
+        }
+      } catch (jobErr) {
+        console.error(`[Worker] Unhandled error processing job from ${currentKey}:`, jobErr);
+      }
+    })();
+
+    activeJobs.add(jobPromise);
+    jobPromise.finally(() => {
+      activeJobs.delete(jobPromise);
+    });
   }
 }
 
@@ -336,7 +366,7 @@ async function handleRunRequest(data: {
   try {
     const extension = EXTENSION_BY_LANGUAGE[language];
     if (!extension) {
-      await client.lPush(
+      await resultClient.lPush(
         `run_results:${runId}`,
         JSON.stringify({
           runId,
@@ -348,7 +378,7 @@ async function handleRunRequest(data: {
           cases: [],
         }),
       );
-      await client.expire(`run_results:${runId}`, 60);
+      await resultClient.expire(`run_results:${runId}`, 60);
       return;
     }
 
@@ -387,7 +417,7 @@ async function handleRunRequest(data: {
     }
 
     if (casesToRun.length === 0) {
-      await client.lPush(
+      await resultClient.lPush(
         `run_results:${runId}`,
         JSON.stringify({
           runId,
@@ -399,7 +429,7 @@ async function handleRunRequest(data: {
           cases: [],
         }),
       );
-      await client.expire(`run_results:${runId}`, 60);
+      await resultClient.expire(`run_results:${runId}`, 60);
       return;
     }
 
@@ -474,7 +504,7 @@ async function handleRunRequest(data: {
       .filter(Boolean)
       .join("\n\n");
 
-    await client.lPush(
+    await resultClient.lPush(
       `run_results:${runId}`,
       JSON.stringify({
         runId,
@@ -486,10 +516,10 @@ async function handleRunRequest(data: {
         cases: caseResults,
       }),
     );
-    await client.expire(`run_results:${runId}`, 60);
+    await resultClient.expire(`run_results:${runId}`, 60);
   } catch (err: any) {
     console.error(`[Worker] Error running code for runId ${runId}:`, err);
-    await client.lPush(
+    await resultClient.lPush(
       `run_results:${runId}`,
       JSON.stringify({
         runId,
@@ -501,7 +531,7 @@ async function handleRunRequest(data: {
         cases: [],
       }),
     );
-    await client.expire(`run_results:${runId}`, 60);
+    await resultClient.expire(`run_results:${runId}`, 60);
   }
 }
 

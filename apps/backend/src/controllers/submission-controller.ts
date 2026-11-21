@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { prisma } from "@repo/db";
-import { getRedisClient } from "../lib/redis";
+import { createDedicatedRedisClient, getRedisClient } from "../lib/redis";
 
 export const getSubmissionById = async (req: Request, res: Response) => {
   try {
@@ -251,8 +251,23 @@ export const runCode = async (req: Request, res: Response) => {
       });
     }
 
-    // Await ephemeral run result from worker (15s timeout)
-    const rawResult = await redis.brPop(`run_results:${runId}`, 15);
+    // Await ephemeral run result from worker (15s timeout) on dedicated blocking client
+    let rawResult = null;
+    let blockingRedis = null;
+    try {
+      blockingRedis = await createDedicatedRedisClient();
+      rawResult = await blockingRedis.brPop(`run_results:${runId}`, 15);
+    } catch (brPopErr) {
+      console.error("Error waiting for runner result on Redis:", brPopErr);
+      return res.status(500).json({ message: "Failed to retrieve execution result" });
+    } finally {
+      if (blockingRedis && blockingRedis.isOpen) {
+        try {
+          await blockingRedis.disconnect();
+        } catch {}
+      }
+    }
+
     if (!rawResult) {
       return res.status(408).json({
         message: "Execution timed out. Please try again.",
