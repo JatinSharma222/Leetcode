@@ -145,3 +145,7 @@ export function getProblemMetadata(questionId?: string): ProblemEditorial {
   if (!questionId) return DEFAULT_PROBLEM_METADATA;
   return PROBLEM_METADATA[questionId] || DEFAULT_PROBLEM_METADATA;
 }
+
+export function hasProblemMetadata(questionId?: string): boolean {
+  return Boolean(questionId && PROBLEM_METADATA[questionId]);
+}

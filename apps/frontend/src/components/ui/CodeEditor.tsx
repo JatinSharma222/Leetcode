@@ -1,13 +1,13 @@
-import React, { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
-import { Copy, RotateCcw, Check, Maximize2, Minimize2, Code2, Map } from "lucide-react";
+import { Check, Code2, Copy, Map, Maximize2, Minimize2, RotateCcw } from "lucide-react";
+
+import { defineObsidianTheme, OBSIDIAN_THEME } from "@/lib/monaco";
 
 interface CodeEditorProps {
   code: string;
   onChange: (newCode: string) => void;
   language: string;
-  onRun?: () => void;
-  onSubmit?: () => void;
   onReset?: () => void;
   disabled?: boolean;
 }
@@ -22,78 +22,27 @@ export default function CodeEditor({
   code,
   onChange,
   language,
-  onRun,
-  onSubmit,
   onReset,
   disabled = false,
 }: CodeEditorProps) {
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [minimapEnabled, setMinimapEnabled] = useState(false);
-  const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-
-    // Register Cmd/Ctrl + Enter shortcut for submit
-    editor.addAction({
-      id: "submit-code",
-      label: "Submit Code",
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-      run: () => {
-        onSubmit?.();
-      },
-    });
-
-    // Register Cmd/Ctrl + ' shortcut for run code
-    editor.addAction({
-      id: "run-code",
-      label: "Run Code",
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Quote],
-      run: () => {
-        onRun?.();
-      },
-    });
-
-    // Define Obsidian Precision theme
-    monaco.editor.defineTheme("obsidian-precision", {
-      base: "vs-dark",
-      inherit: true,
-      rules: [
-        { token: "comment", foreground: "6B7280", fontStyle: "italic" },
-        { token: "keyword", foreground: "F43F5E", fontStyle: "bold" },
-        { token: "string", foreground: "34D399" },
-        { token: "number", foreground: "A78BFA" },
-        { token: "type", foreground: "38BDF8" },
-        { token: "function", foreground: "60A5FA" },
-        { token: "variable", foreground: "F9FAFB" },
-        { token: "operator", foreground: "F43F5E" },
-        { token: "delimiter", foreground: "9CA3AF" },
-        { token: "identifier", foreground: "F9FAFB" },
-      ],
-      colors: {
-        "editor.background": "#0B0B0F",
-        "editor.foreground": "#F9FAFB",
-        "editor.lineHighlightBackground": "#16161F",
-        "editor.selectionBackground": "#E11D4840",
-        "editorCursor.foreground": "#E11D48",
-        "editorLineNumber.foreground": "#4B5563",
-        "editorLineNumber.activeForeground": "#F9FAFB",
-        "editor.selectionHighlightBackground": "#E11D4820",
-        "editorBracketMatch.background": "#E11D4830",
-        "editorBracketMatch.border": "#E11D4880",
-        "editorIndentGuide.background": "#1F1F28",
-        "editorIndentGuide.activeBackground": "#374151",
-        "editorGutter.background": "#0E0E12",
-        "scrollbarSlider.background": "#FFFFFF15",
-        "scrollbarSlider.hoverBackground": "#FFFFFF25",
-      },
-    });
-
-    monaco.editor.setTheme("obsidian-precision");
+    defineObsidianTheme(monaco);
+    monaco.editor.setTheme(OBSIDIAN_THEME);
     editor.focus();
   };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -101,18 +50,17 @@ export default function CodeEditor({
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!containerRef.current) return;
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen();
+
+    try {
+      if (document.fullscreenElement === containerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await containerRef.current.requestFullscreen();
       }
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-      setIsFullscreen(false);
+    } catch {
+      // Fullscreen can be blocked by the browser; leave the editor as-is.
     }
   };
 
@@ -121,51 +69,53 @@ export default function CodeEditor({
   return (
     <div
       ref={containerRef}
-      className={`flex h-full flex-col rounded-xl border border-white/5 bg-surface-base overflow-hidden shadow-xl ${
+      className={`flex h-full flex-col overflow-hidden rounded-lg border border-border-hairline bg-surface-base ${
         isFullscreen ? "fixed inset-0 z-50 rounded-none border-none" : ""
       }`}
     >
-      {/* Editor Header Bar */}
-      <div className="h-9 bg-surface-elevated px-3 flex items-center justify-between shrink-0 border-b border-white/5 select-none">
-        <div className="flex items-center h-full">
-          <div className="flex items-center gap-2 px-3 h-full bg-surface-base font-mono text-xs text-text-primary font-medium border-r border-white/5 shadow-xs">
-            <Code2 className="h-3.5 w-3.5 text-[#38BDF8]" />
-            <span>{fileName}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
-          </div>
+      <div className="flex h-9 shrink-0 select-none items-center justify-between border-b border-border-hairline bg-surface-elevated px-3">
+        <div className="flex h-full items-center gap-2 font-mono text-xs text-text-primary">
+          <Code2 className="h-3.5 w-3.5 text-[#38bdf8]" />
+          <span>{fileName}</span>
         </div>
 
         <div className="flex items-center gap-3 font-mono text-[11px] text-text-muted">
-          <span className="hidden sm:inline">Spaces: 4</span>
-          <span className="hidden sm:inline">UTF-8</span>
-          <span className="uppercase">{language}</span>
+          <span className="hidden uppercase sm:inline">{language}</span>
 
-          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+          <div className="flex items-center gap-0.5 border-l border-border-hairline pl-2">
             <button
               type="button"
               onClick={handleCopy}
-              title="Copy solution code"
-              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+              aria-label="Copy code"
+              title="Copy code"
+              className="rounded p-1 transition-colors hover:bg-surface-hover hover:text-text-primary"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-status-accepted" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-status-accepted" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
             </button>
 
-            {onReset && (
+            {onReset ? (
               <button
                 type="button"
                 onClick={onReset}
-                title="Reset to starter template"
-                className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+                aria-label="Reset to starter code"
+                title="Reset to starter code"
+                className="rounded p-1 transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
-            )}
+            ) : null}
 
             <button
               type="button"
               onClick={() => setMinimapEnabled((prev) => !prev)}
-              title="Toggle Minimap"
-              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+              aria-label={minimapEnabled ? "Hide minimap" : "Show minimap"}
+              aria-pressed={minimapEnabled}
+              title="Toggle minimap"
+              className="rounded p-1 transition-colors hover:bg-surface-hover hover:text-text-primary"
             >
               <Map className={`h-3.5 w-3.5 ${minimapEnabled ? "text-primary" : ""}`} />
             </button>
@@ -173,24 +123,28 @@ export default function CodeEditor({
             <button
               type="button"
               onClick={toggleFullscreen}
-              title="Toggle Fullscreen"
-              className="p-1 hover:text-text-primary rounded transition-colors cursor-pointer"
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              className="rounded p-1 transition-colors hover:bg-surface-hover hover:text-text-primary"
             >
-              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              {isFullscreen ? (
+                <Minimize2 className="h-3.5 w-3.5" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5" />
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Editor Surface */}
-      <div className="flex-1 min-h-0 overflow-hidden relative">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <MonacoEditor
           height="100%"
-          language={language === "cpp" ? "cpp" : language}
+          language={language}
           value={code}
-          onChange={(val) => onChange(val || "")}
+          onChange={(value) => onChange(value || "")}
           onMount={handleEditorMount}
-          theme="obsidian-precision"
+          theme={OBSIDIAN_THEME}
           options={{
             readOnly: disabled,
             minimap: { enabled: minimapEnabled },
@@ -203,7 +157,6 @@ export default function CodeEditor({
             scrollBeyondLastLine: false,
             renderLineHighlight: "all",
             cursorBlinking: "smooth",
-            cursorSmoothCaretAnimation: "on",
             smoothScrolling: true,
             automaticLayout: true,
             tabSize: 4,

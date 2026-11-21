@@ -1,26 +1,35 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  ChevronUp,
-  ChevronDown,
-  CheckCircle2,
-  XCircle,
-  Plus,
-  Trash2,
-  RotateCcw,
-  Copy,
-  Check,
-  Zap,
-  Terminal,
-  Clock,
   AlertTriangle,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Copy,
+  Plus,
+  RotateCcw,
+  Terminal,
+  Trash2,
+  XCircle,
 } from "lucide-react";
-import type { TestCase, SubmissionStatus, RunResultResponse } from "@/lib/types";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type {
+  RunResultResponse,
+  SubmissionCaseResult,
+  SubmissionStatus,
+  TestCase,
+} from "@/lib/types";
+import { getStatusMeta } from "@/lib/ui";
 
 export interface SubmissionResultView {
   status: SubmissionStatus;
   output?: string | null;
   passedCount?: number;
   totalCount?: number;
+  cases?: SubmissionCaseResult[];
 }
 
 export interface LiveEvaluationProgress {
@@ -34,11 +43,9 @@ interface ConsolePanelProps {
   testCases?: TestCase[];
   isRunning?: boolean;
   runResult?: RunResultResponse | null;
-  onRun?: () => void;
   isSubmitting?: boolean;
   liveProgress?: LiveEvaluationProgress | null;
   submissionResult?: SubmissionResultView | null;
-  onSubmit?: () => void;
   pollTimedOut?: boolean;
   customInputs?: string[];
   onCustomInputsChange?: (inputs: string[]) => void;
@@ -46,15 +53,20 @@ interface ConsolePanelProps {
   onToggleOpen: () => void;
 }
 
+const MAX_CUSTOM_CASES = 10;
+
+function VerdictBadge({ status }: { status: SubmissionStatus | string }) {
+  const meta = getStatusMeta(status);
+  return <Badge variant={meta.tone}>{meta.label}</Badge>;
+}
+
 export default function ConsolePanel({
   testCases = [],
   isRunning = false,
   runResult = null,
-  onRun,
   isSubmitting = false,
   liveProgress = null,
   submissionResult = null,
-  onSubmit,
   pollTimedOut = false,
   customInputs = [],
   onCustomInputsChange,
@@ -66,29 +78,24 @@ export default function ConsolePanel({
   const [selectedRunCaseIdx, setSelectedRunCaseIdx] = useState(0);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Auto switch tabs on activity
   useEffect(() => {
-    if (isRunning || runResult) {
-      setActiveTab("runResult");
-    }
+    if (isRunning || runResult) setActiveTab("runResult");
   }, [isRunning, runResult]);
 
   useEffect(() => {
-    if (isSubmitting || submissionResult) {
-      setActiveTab("subResult");
-    }
+    if (isSubmitting || submissionResult) setActiveTab("subResult");
   }, [isSubmitting, submissionResult]);
 
   useEffect(() => {
     if (runResult?.cases && runResult.cases.length > 0) {
-      const firstFailIdx = runResult.cases.findIndex((c) => !c.passed);
+      const firstFailIdx = runResult.cases.findIndex((item) => !item.passed);
       setSelectedRunCaseIdx(firstFailIdx >= 0 ? firstFailIdx : 0);
     } else {
       setSelectedRunCaseIdx(0);
     }
   }, [runResult]);
 
-  const sampleInputs = testCases.map((tc) => tc.input);
+  const sampleInputs = testCases.map((testCase) => testCase.input);
   const effectiveInputs = customInputs.length > 0 ? customInputs : sampleInputs;
 
   const handleInputChange = (index: number, value: string) => {
@@ -98,9 +105,9 @@ export default function ConsolePanel({
   };
 
   const handleAddCase = () => {
+    if (effectiveInputs.length >= MAX_CUSTOM_CASES) return;
     const base = customInputs.length > 0 ? customInputs : sampleInputs;
-    const nextCase = base[base.length - 1] ?? "";
-    const updated = [...base, nextCase];
+    const updated = [...base, ""];
     onCustomInputsChange?.(updated);
     setSelectedCaseIdx(updated.length - 1);
   };
@@ -108,7 +115,7 @@ export default function ConsolePanel({
   const handleRemoveCase = (index: number) => {
     const base = customInputs.length > 0 ? customInputs : sampleInputs;
     if (base.length <= 1) return;
-    const updated = base.filter((_, idx) => idx !== index);
+    const updated = base.filter((_, itemIndex) => itemIndex !== index);
     onCustomInputsChange?.(updated);
     if (selectedCaseIdx >= updated.length) {
       setSelectedCaseIdx(updated.length - 1);
@@ -126,438 +133,371 @@ export default function ConsolePanel({
     setTimeout(() => setCopiedField(null), 1500);
   };
 
-  const passedTests = submissionResult?.passedCount ?? 0;
-  const totalTests = submissionResult?.totalCount ?? (testCases.length || 10);
-  const isAccepted =
-    submissionResult?.status === "Success" ||
-    (submissionResult?.status as string) === "Accepted";
-
-  const getVerdictDetails = (status?: string) => {
-    switch (status) {
-      case "Success":
-      case "Accepted":
-        return {
-          label: "Accepted",
-          icon: <CheckCircle2 className="h-4 w-4" />,
-          colorClass: "bg-status-accepted/10 text-status-accepted shadow-[0_0_15px_-2px_rgba(16,185,129,0.3)]",
-        };
-      case "WrongAnswer":
-        return {
-          label: "Wrong Answer",
-          icon: <XCircle className="h-4 w-4" />,
-          colorClass: "bg-status-error/10 text-status-error shadow-[0_0_15px_-2px_rgba(244,63,94,0.3)]",
-        };
-      case "TLE":
-        return {
-          label: "Time Limit Exceeded",
-          icon: <Clock className="h-4 w-4" />,
-          colorClass: "bg-status-warning/10 text-status-warning shadow-[0_0_15px_-2px_rgba(245,158,11,0.3)]",
-        };
-      case "MLE":
-        return {
-          label: "Memory Limit Exceeded",
-          icon: <AlertTriangle className="h-4 w-4" />,
-          colorClass: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-        };
-      case "CompileError":
-        return {
-          label: "Compilation Error",
-          icon: <AlertTriangle className="h-4 w-4" />,
-          colorClass: "bg-status-error/10 text-status-error border border-status-error/20",
-        };
-      case "RuntimeError":
-        return {
-          label: "Runtime Error",
-          icon: <Zap className="h-4 w-4" />,
-          colorClass: "bg-status-error/10 text-status-error border border-status-error/20",
-        };
-      default:
-        return {
-          label: status || "Unknown",
-          icon: <AlertTriangle className="h-4 w-4" />,
-          colorClass: "bg-status-error/10 text-status-error",
-        };
-    }
-  };
-
-  const isRunAccepted =
-    runResult?.status === "Accepted" || runResult?.status === "Success";
+  const isRunAccepted = runResult?.status === "Accepted" || runResult?.status === "Success";
   const runPassedCount =
-    runResult?.cases?.filter((c) => c.passed).length ?? (isRunAccepted ? (runResult?.cases?.length ?? 0) : 0);
+    runResult?.cases?.filter((item) => item.passed).length ??
+    (isRunAccepted ? (runResult?.cases?.length ?? 0) : 0);
   const runTotalCount = runResult?.cases?.length ?? 0;
 
+  const isAccepted =
+    submissionResult?.status === "Success" || submissionResult?.status === "Accepted";
+  const passedTests = submissionResult?.passedCount ?? 0;
+  const totalTests = submissionResult?.totalCount ?? 0;
+  const caseResults = submissionResult?.cases ?? [];
+  const progressPercent =
+    liveProgress?.phase === "testcase" && liveProgress.total
+      ? Math.min(100, Math.round(((liveProgress.current ?? 0) / liveProgress.total) * 100))
+      : 0;
+
+  const tabs = [
+    { id: "testcase" as const, label: "Test cases" },
+    { id: "runResult" as const, label: "Run result" },
+    { id: "subResult" as const, label: "Submit result" },
+  ];
+
   return (
-    <div className="flex h-full flex-col bg-surface-elevated rounded-xl border border-white/5 shadow-2xl overflow-hidden">
-      {/* Drawer Header Tabs */}
-      <div className="h-10 bg-surface-base px-3 flex items-center justify-between shrink-0 border-b border-white/5 select-none">
-        <div className="flex items-center gap-1 h-full">
-          {/* Testcase Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("testcase")}
-            className={`px-3 h-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer relative ${
-              activeTab === "testcase"
-                ? "text-text-primary font-semibold"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <span>Testcase</span>
-            {activeTab === "testcase" && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
-            )}
-          </button>
-
-          {/* Run Result Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("runResult")}
-            className={`px-3 h-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer relative ${
-              activeTab === "runResult"
-                ? "text-text-primary font-semibold"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <Terminal className="h-3.5 w-3.5" />
-            <span>Run Result</span>
-            {runResult && (
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  isRunAccepted ? "bg-status-accepted" : "bg-status-error"
-                }`}
-              />
-            )}
-            {activeTab === "runResult" && (
-              <span
-                className={`absolute bottom-0 left-0 w-full h-[2px] ${
-                  isRunAccepted ? "bg-status-accepted" : "bg-primary-container"
-                }`}
-              />
-            )}
-          </button>
-
-          {/* Submit Result Tab */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("subResult")}
-            className={`px-3 h-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer relative ${
-              activeTab === "subResult"
-                ? "text-text-primary font-semibold"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            <CheckCircle2
-              className={`h-3.5 w-3.5 ${isAccepted ? "text-status-accepted" : "text-text-muted"}`}
-            />
-            <span>Submit Result</span>
-            {activeTab === "subResult" && (
-              <span
-                className={`absolute bottom-0 left-0 w-full h-[2px] ${
-                  isAccepted ? "bg-status-accepted" : "bg-primary-container"
-                }`}
-              />
-            )}
-          </button>
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border-hairline bg-surface-elevated">
+      <div className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border-hairline bg-surface-base px-2">
+        <div role="tablist" aria-label="Console panels" className="flex h-full items-center gap-0.5">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex h-full items-center gap-1.5 px-3 text-xs transition-colors ${
+                activeTab === tab.id
+                  ? "font-medium text-text-primary"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {tab.id === "runResult" ? <Terminal className="h-3.5 w-3.5" /> : null}
+              {tab.id === "subResult" ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
+              {tab.label}
+              {tab.id === "runResult" && runResult ? (
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isRunAccepted ? "bg-status-accepted" : "bg-status-error"
+                  }`}
+                />
+              ) : null}
+              {tab.id === "subResult" && submissionResult ? (
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isAccepted ? "bg-status-accepted" : "bg-status-error"
+                  }`}
+                />
+              ) : null}
+              {activeTab === tab.id ? (
+                <span className="absolute inset-x-0 bottom-0 h-[2px] bg-primary-container" />
+              ) : null}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] text-text-muted uppercase tracking-wider hidden sm:inline">
-            Execution Console
+          <span className="hidden font-mono text-[10px] uppercase tracking-wide text-text-muted sm:inline">
+            Console
           </span>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onToggleOpen}
-            className="p-1 text-text-muted hover:text-text-primary rounded transition-colors cursor-pointer"
-            title={isOpen ? "Collapse Console" : "Expand Console"}
+            aria-label={isOpen ? "Collapse console" : "Expand console"}
+            aria-expanded={isOpen}
           >
-            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          </button>
+            {isOpen ? <ChevronDown /> : <ChevronUp />}
+          </Button>
         </div>
       </div>
 
-      {/* Drawer Body */}
-      {isOpen && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 font-sans">
-          {/* TAB 1: TESTCASES */}
-          {activeTab === "testcase" && (
+      {isOpen ? (
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 font-sans">
+          {activeTab === "testcase" ? (
             <div className="space-y-3">
-              {/* Testcase Pills Bar */}
-              <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2">
+              <div className="flex items-center justify-between gap-2 border-b border-border-hairline pb-2">
                 <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {effectiveInputs.map((_, idx) => (
+                  {effectiveInputs.map((_, index) => (
                     <button
-                      key={idx}
+                      key={index}
                       type="button"
-                      onClick={() => setSelectedCaseIdx(idx)}
-                      className={`px-3 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
-                        selectedCaseIdx === idx
-                          ? "bg-surface-hover text-text-primary font-semibold shadow-xs border border-white/10"
+                      onClick={() => setSelectedCaseIdx(index)}
+                      aria-pressed={selectedCaseIdx === index}
+                      className={`shrink-0 rounded-md px-3 py-1 font-mono text-xs transition-colors ${
+                        selectedCaseIdx === index
+                          ? "border border-border-subtle bg-surface-hover text-text-primary"
                           : "text-text-muted hover:text-text-primary"
                       }`}
                     >
-                      Case {idx + 1}
+                      Case {index + 1}
                     </button>
                   ))}
 
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleAddCase}
-                    title="Add test case"
-                    className="p-1 text-text-muted hover:text-text-primary rounded hover:bg-surface-hover transition-colors cursor-pointer"
+                    disabled={effectiveInputs.length >= MAX_CUSTOM_CASES}
+                    aria-label="Add test case"
+                    title={
+                      effectiveInputs.length >= MAX_CUSTOM_CASES
+                        ? `Maximum of ${MAX_CUSTOM_CASES} cases`
+                        : "Add test case"
+                    }
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+                    <Plus />
+                  </Button>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  {effectiveInputs.length > 1 && (
-                    <button
-                      type="button"
+                  <span className="mr-1 font-mono text-[10px] text-text-muted">
+                    {effectiveInputs.length}/{MAX_CUSTOM_CASES}
+                  </span>
+                  {effectiveInputs.length > 1 ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleRemoveCase(selectedCaseIdx)}
-                      title="Remove current test case"
-                      className="p-1 text-text-muted hover:text-status-error transition-colors cursor-pointer"
+                      aria-label="Remove current test case"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
+                      <Trash2 />
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={handleResetInputs}
-                    title="Reset to default test cases"
-                    className="p-1 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                    aria-label="Reset to sample test cases"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
+                    <RotateCcw />
+                  </Button>
                 </div>
               </div>
 
-              {/* Selected Testcase Input Field */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-text-muted font-mono">
-                  <span>Input Vector (stdin):</span>
+                <div className="flex items-center justify-between font-mono text-xs text-text-muted">
+                  <label htmlFor="custom-testcase-input">Input (stdin)</label>
                   <span>Case {selectedCaseIdx + 1}</span>
                 </div>
                 <textarea
-                  rows={3}
-                  value={effectiveInputs[selectedCaseIdx] || ""}
-                  onChange={(e) => handleInputChange(selectedCaseIdx, e.target.value)}
-                  placeholder="Enter testcase input parameters..."
-                  className="w-full rounded-lg bg-surface-base border border-white/10 p-3 font-mono text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-container shadow-inner"
+                  id="custom-testcase-input"
+                  rows={4}
+                  value={effectiveInputs[selectedCaseIdx] ?? ""}
+                  onChange={(event) => handleInputChange(selectedCaseIdx, event.target.value)}
+                  placeholder="Enter test case input"
+                  className="w-full rounded-md border border-border-hairline bg-surface-base p-3 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-primary/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
                 />
+                {effectiveInputs.length >= MAX_CUSTOM_CASES ? (
+                  <p className="text-[11px] text-text-muted">
+                    Custom test cases are limited to {MAX_CUSTOM_CASES} per run.
+                  </p>
+                ) : null}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* TAB 2: RUN RESULT */}
-          {activeTab === "runResult" && (
+          {activeTab === "runResult" ? (
             <div className="space-y-3">
               {isRunning ? (
-                <div className="flex items-center justify-center py-8 gap-3 text-text-muted font-mono text-xs">
+                <div className="flex items-center justify-center gap-3 py-8 font-mono text-xs text-text-muted">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
-                  <span>Compiling &amp; executing test vectors in sandbox...</span>
+                  <span>Running test cases…</span>
                 </div>
               ) : !runResult ? (
-                <div className="py-8 text-center text-text-muted text-xs">
-                  No interactive run executed yet. Click <strong className="text-text-primary">Run (⌘')</strong> to evaluate.
-                </div>
+                <p className="py-8 text-center text-xs text-text-muted">
+                  Run your code to test it against the sample cases.
+                </p>
               ) : (
                 <div className="space-y-3">
-                  {/* Status Banner */}
-                  <div className="flex items-center justify-between bg-surface-base p-3 rounded-lg border border-white/5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-hairline bg-surface-base p-3">
                     <div className="flex items-center gap-2">
-                      {isRunAccepted ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-accepted/15 text-status-accepted flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(16,185,129,0.25)]">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Accepted
-                        </span>
-                      ) : runResult.status === "WrongAnswer" ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-error/15 text-status-error flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(244,63,94,0.25)]">
-                          <XCircle className="h-4 w-4" />
-                          Wrong Answer
-                        </span>
-                      ) : runResult.status === "TLE" ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-warning/15 text-status-warning flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(245,158,11,0.25)]">
-                          <Clock className="h-4 w-4" />
-                          Time Limit Exceeded
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-status-error/15 text-status-error flex items-center gap-1.5 shadow-[0_0_12px_-2px_rgba(244,63,94,0.25)]">
-                          <AlertTriangle className="h-4 w-4" />
-                          {runResult.status === "Failure" ? "Runtime Error" : runResult.status}
-                        </span>
-                      )}
-                      <span className="text-xs text-text-muted font-mono">
-                        {runTotalCount > 0 ? `${runPassedCount} / ${runTotalCount} Cases Passed` : "Interactive Run"}
+                      <VerdictBadge status={runResult.status} />
+                      <span className="font-mono text-xs text-text-muted">
+                        {runTotalCount > 0
+                          ? `${runPassedCount} / ${runTotalCount} cases passed`
+                          : "Run complete"}
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-2 text-xs font-mono text-text-muted">
-                      <Clock className="h-3.5 w-3.5 text-text-secondary" />
-                      <span>{runResult.durationMs !== undefined ? `${runResult.durationMs}ms` : runResult.executionTimeMs !== undefined ? `${runResult.executionTimeMs}ms` : "0ms"}</span>
-                    </div>
+                    <span className="flex items-center gap-1.5 font-mono text-xs text-text-muted">
+                      <Clock className="h-3.5 w-3.5" />
+                      {runResult.durationMs ?? runResult.executionTimeMs ?? 0}ms
+                    </span>
                   </div>
 
-                  {/* Test Cases Pill Tabs (if cases exist) */}
                   {runResult.cases && runResult.cases.length > 0 ? (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/5 pb-2">
-                        {runResult.cases.map((c, idx) => (
+                      <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border-hairline pb-2">
+                        {runResult.cases.map((item, index) => (
                           <button
-                            key={idx}
+                            key={index}
                             type="button"
-                            onClick={() => setSelectedRunCaseIdx(idx)}
-                            className={`px-3 py-1 rounded-md text-xs font-mono transition-all cursor-pointer flex items-center gap-1.5 ${
-                              selectedRunCaseIdx === idx
-                                ? "bg-surface-hover text-text-primary font-semibold shadow-xs border border-white/10"
+                            onClick={() => setSelectedRunCaseIdx(index)}
+                            aria-pressed={selectedRunCaseIdx === index}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1 font-mono text-xs transition-colors ${
+                              selectedRunCaseIdx === index
+                                ? "border border-border-subtle bg-surface-hover text-text-primary"
                                 : "text-text-muted hover:text-text-primary"
                             }`}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                c.passed ? "bg-status-accepted" : "bg-status-error"
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                item.passed ? "bg-status-accepted" : "bg-status-error"
                               }`}
                             />
-                            <span>Case {idx + 1}</span>
+                            Case {index + 1}
                           </button>
                         ))}
                       </div>
 
-                      {/* Details of Selected Run Case */}
                       {(() => {
-                        const activeCase = runResult.cases[selectedRunCaseIdx] || runResult.cases[0];
+                        const activeCase =
+                          runResult.cases[selectedRunCaseIdx] ?? runResult.cases[0];
                         if (!activeCase) return null;
 
                         return (
                           <div className="space-y-3">
-                            {/* Input Vector */}
                             <div className="space-y-1.5">
-                              <div className="flex items-center justify-between text-xs font-mono text-text-muted">
-                                <span>Input Vector (stdin):</span>
+                              <div className="flex items-center justify-between font-mono text-xs text-text-muted">
+                                <span>Input</span>
                                 <button
                                   type="button"
-                                  onClick={() => handleCopy(activeCase.input || "", `run-input-${selectedRunCaseIdx}`)}
-                                  className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                  onClick={() =>
+                                    handleCopy(activeCase.input || "", `run-input-${selectedRunCaseIdx}`)
+                                  }
+                                  className="flex items-center gap-1 hover:text-text-primary"
                                 >
                                   {copiedField === `run-input-${selectedRunCaseIdx}` ? (
                                     <Check className="h-3 w-3 text-status-accepted" />
                                   ) : (
                                     <Copy className="h-3 w-3" />
                                   )}
-                                  <span>Copy</span>
+                                  Copy
                                 </button>
                               </div>
-                              <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap">
+                              <pre className="whitespace-pre-wrap rounded-md border border-border-hairline bg-surface-base p-3 font-mono text-xs text-text-primary">
                                 {activeCase.input || "(empty)"}
                               </pre>
                             </div>
 
-                            {/* Output */}
                             <div className="space-y-1.5">
-                              <div className="flex items-center justify-between text-xs font-mono text-text-muted">
+                              <div className="flex items-center justify-between font-mono text-xs text-text-muted">
                                 <span className="flex items-center gap-1.5">
-                                  <span>Output / Return:</span>
+                                  Output
                                   {activeCase.passed ? (
-                                    <span className="text-[10px] text-status-accepted font-semibold">✓ Matches Expected</span>
+                                    <span className="text-[10px] font-semibold text-status-accepted">
+                                      Matches expected
+                                    </span>
                                   ) : (
-                                    <span className="text-[10px] text-status-error font-semibold">✗ Output Mismatch</span>
+                                    <span className="text-[10px] font-semibold text-status-error">
+                                      Does not match
+                                    </span>
                                   )}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleCopy(activeCase.actualOutput || "", `run-output-${selectedRunCaseIdx}`)}
-                                  className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                  onClick={() =>
+                                    handleCopy(
+                                      activeCase.actualOutput || "",
+                                      `run-output-${selectedRunCaseIdx}`,
+                                    )
+                                  }
+                                  className="flex items-center gap-1 hover:text-text-primary"
                                 >
                                   {copiedField === `run-output-${selectedRunCaseIdx}` ? (
                                     <Check className="h-3 w-3 text-status-accepted" />
                                   ) : (
                                     <Copy className="h-3 w-3" />
                                   )}
-                                  <span>Copy</span>
+                                  Copy
                                 </button>
                               </div>
                               <pre
-                                className={`p-3 rounded-lg bg-surface-base border font-mono text-xs whitespace-pre-wrap max-h-36 overflow-y-auto ${
+                                className={`max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md border p-3 font-mono text-xs ${
                                   activeCase.passed
-                                    ? "border-white/5 text-text-primary"
-                                    : "border-status-error/30 text-status-error bg-status-error/5"
+                                    ? "border-border-hairline bg-surface-base text-text-primary"
+                                    : "border-status-error/30 bg-status-error/5 text-status-error"
                                 }`}
                               >
-                                {activeCase.actualOutput !== "" ? (
-                                  activeCase.actualOutput
-                                ) : (
-                                  <span className="text-text-muted italic">(no output returned)</span>
-                                )}
+                                {activeCase.actualOutput || "(no output)"}
                               </pre>
                             </div>
 
-                            {/* Expected Output */}
-                            {activeCase.expectedOutput !== undefined && activeCase.expectedOutput !== "" && (
+                            {activeCase.expectedOutput ? (
                               <div className="space-y-1.5">
-                                <div className="flex items-center justify-between text-xs font-mono text-text-muted">
-                                  <span>Expected Output:</span>
+                                <div className="flex items-center justify-between font-mono text-xs text-text-muted">
+                                  <span>Expected output</span>
                                   <button
                                     type="button"
-                                    onClick={() => handleCopy(activeCase.expectedOutput || "", `run-expected-${selectedRunCaseIdx}`)}
-                                    className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                                    onClick={() =>
+                                      handleCopy(
+                                        activeCase.expectedOutput || "",
+                                        `run-expected-${selectedRunCaseIdx}`,
+                                      )
+                                    }
+                                    className="flex items-center gap-1 hover:text-text-primary"
                                   >
                                     {copiedField === `run-expected-${selectedRunCaseIdx}` ? (
                                       <Check className="h-3 w-3 text-status-accepted" />
                                     ) : (
                                       <Copy className="h-3 w-3" />
                                     )}
-                                    <span>Copy</span>
+                                    Copy
                                   </button>
                                 </div>
-                                <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-hairline bg-surface-base p-3 font-mono text-xs text-text-primary">
                                   {activeCase.expectedOutput}
                                 </pre>
                               </div>
-                            )}
+                            ) : null}
 
-                            {/* Stderr / Error if any */}
-                            {activeCase.error && (
+                            {activeCase.error ? (
                               <div className="space-y-1.5">
-                                <div className="text-xs font-mono text-status-error flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 font-mono text-xs text-status-error">
                                   <AlertTriangle className="h-3.5 w-3.5" />
-                                  <span>Stderr / Error Log:</span>
+                                  Error
                                 </div>
-                                <pre className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 font-mono text-xs text-status-error whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md border border-status-error/20 bg-status-error/10 p-3 font-mono text-xs text-status-error">
                                   {activeCase.error}
                                 </pre>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                         );
                       })()}
                     </div>
                   ) : (
-                    /* Fallback if no cases array */
                     <div className="space-y-3">
-                      {runResult.error && (
+                      {runResult.error ? (
                         <div className="space-y-1.5">
-                          <div className="text-xs font-mono text-status-error flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 font-mono text-xs text-status-error">
                             <AlertTriangle className="h-3.5 w-3.5" />
-                            <span>Error Log:</span>
+                            Error
                           </div>
-                          <pre className="p-3 rounded-lg bg-status-error/10 border border-status-error/20 font-mono text-xs text-status-error whitespace-pre-wrap max-h-36 overflow-y-auto">
+                          <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md border border-status-error/20 bg-status-error/10 p-3 font-mono text-xs text-status-error">
                             {runResult.error}
                           </pre>
                         </div>
-                      )}
+                      ) : null}
 
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-mono text-text-muted">
-                          <span>Standard Output / Return:</span>
+                        <div className="flex items-center justify-between font-mono text-xs text-text-muted">
+                          <span>Output</span>
                           <button
                             type="button"
                             onClick={() => handleCopy(runResult.output || "", "run-output")}
-                            className="flex items-center gap-1 hover:text-text-primary cursor-pointer"
+                            className="flex items-center gap-1 hover:text-text-primary"
                           >
-                            {copiedField === "run-output" ? <Check className="h-3 w-3 text-status-accepted" /> : <Copy className="h-3 w-3" />}
-                            <span>Copy</span>
+                            {copiedField === "run-output" ? (
+                              <Check className="h-3 w-3 text-status-accepted" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            Copy
                           </button>
                         </div>
-                        <pre className="p-3 rounded-lg bg-surface-base border border-white/5 font-mono text-xs text-text-primary whitespace-pre-wrap max-h-36 overflow-y-auto">
-                          {runResult.output || <span className="text-text-muted italic">(no output returned)</span>}
+                        <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded-md border border-border-hairline bg-surface-base p-3 font-mono text-xs text-text-primary">
+                          {runResult.output || "(no output)"}
                         </pre>
                       </div>
                     </div>
@@ -565,111 +505,123 @@ export default function ConsolePanel({
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
-          {/* TAB 3: SUBMIT RESULT */}
-          {activeTab === "subResult" && (
+          {activeTab === "subResult" ? (
             <div className="space-y-3">
               {isSubmitting ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-3 text-text-muted font-mono text-xs">
+                <div className="flex flex-col items-center justify-center gap-3 py-6 font-mono text-xs text-text-muted">
                   <div className="flex items-center gap-2.5">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
                     <span>
                       {liveProgress?.phase === "compiling"
-                        ? "Compiling & linking in isolated sandbox..."
+                        ? "Compiling…"
                         : liveProgress?.phase === "testcase"
-                          ? `Evaluating test case ${liveProgress.current} of ${liveProgress.total}...`
-                          : "Evaluating submission against full test suite..."}
+                          ? `Running test case ${liveProgress.current} of ${liveProgress.total}…`
+                          : "Running the full test suite…"}
                     </span>
                   </div>
-                  {liveProgress?.phase === "testcase" && liveProgress.total && liveProgress.total > 0 && (
-                    <div className="w-56 h-1.5 bg-surface-base rounded-full overflow-hidden border border-white/10 mt-1">
+                  {liveProgress?.phase === "testcase" && liveProgress.total ? (
+                    <div className="mt-1 h-1.5 w-56 overflow-hidden rounded-full border border-border-hairline bg-surface-base">
                       <div
                         className="h-full bg-primary-container transition-all duration-200"
-                        style={{
-                          width: `${Math.min(100, Math.round(((liveProgress.current || 0) / liveProgress.total) * 100))}%`,
-                        }}
+                        style={{ width: `${progressPercent}%` }}
                       />
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : pollTimedOut ? (
-                <div className="p-4 bg-status-warning/10 border border-status-warning/30 rounded-lg text-xs text-status-warning">
-                  Submission took longer than expected to process. Check the Submissions page for your verdict.
+                <div className="rounded-md border border-status-warning/30 bg-status-warning/10 p-4 text-xs text-status-warning">
+                  This submission is taking longer than expected. Check the Submissions page for the
+                  final verdict.
                 </div>
               ) : !submissionResult ? (
-                <div className="py-8 text-center text-text-muted text-xs">
-                  Ready for full evaluation. Click <strong className="text-text-primary">Submit (⌘↵)</strong> to test all vectors.
-                </div>
+                <p className="py-8 text-center text-xs text-text-muted">
+                  Submit your solution to run it against the full test suite.
+                </p>
               ) : (
                 <div className="space-y-3">
-                  {/* Verdict Header & Metric Grid */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-base p-3 rounded-lg border border-white/5">
-                    <div className="flex items-center gap-3">
-                      {(() => {
-                        const verdict = getVerdictDetails(submissionResult.status);
-                        return (
-                          <span
-                            className={`px-3 py-1 rounded-full font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm ${verdict.colorClass}`}
-                          >
-                            {verdict.icon}
-                            {verdict.label}
-                          </span>
-                        );
-                      })()}
-                      <span className="text-xs text-text-secondary hidden sm:inline">
-                        Next-gen vector judge
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-hairline bg-surface-base p-3">
+                    <div className="flex items-center gap-2">
+                      <VerdictBadge status={submissionResult.status} />
+                      <span className="font-mono text-xs text-text-muted">
+                        {totalTests > 0
+                          ? `${passedTests} / ${totalTests} test cases passed`
+                          : "Submission complete"}
                       </span>
                     </div>
-
-                    <div className="flex items-center gap-3 font-mono text-xs">
-                      <span className="text-text-muted">Pass Rate:</span>
-                      <span className={`font-bold ${isAccepted ? "text-status-accepted" : "text-status-warning"}`}>
+                    {totalTests > 0 ? (
+                      <span className="font-mono text-xs text-text-muted">
                         {Math.round((passedTests / Math.max(totalTests, 1)) * 100)}%
                       </span>
-                    </div>
+                    ) : null}
                   </div>
 
-                  {/* Visual TestStrip (Micro Jewels) */}
-                  <div className="bg-surface-base p-3 rounded-lg space-y-2 border border-white/5">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-text-muted uppercase">
-                      <span className={`flex items-center gap-1 ${isAccepted ? "text-status-accepted font-semibold" : "text-text-primary"}`}>
-                        {passedTests} / {totalTests} Test Cases Passed
-                      </span>
-                      <span className="text-text-secondary">Full Suite Evaluation</span>
-                    </div>
+                  {totalTests > 0 ? (
+                    <div className="space-y-2 rounded-md border border-border-hairline bg-surface-base p-3">
+                      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-wide text-text-muted">
+                        <span>Test cases</span>
+                        <span>Passed {passedTests} of {totalTests}</span>
+                      </div>
 
-                    {/* Micro Jewels Grid */}
-                    <div
-                      className="grid gap-1 w-full pt-1"
-                      style={{ gridTemplateColumns: `repeat(${Math.min(totalTests, 25)}, minmax(0, 1fr))` }}
-                    >
-                      {Array.from({ length: totalTests }).map((_, i) => (
+                      {caseResults.length > 0 ? (
                         <div
-                          key={i}
-                          className={`h-2 rounded-[1px] ${
-                            i < passedTests ? "bg-status-accepted" : "bg-status-error"
-                          }`}
-                          title={`Test Case ${i + 1}: ${i < passedTests ? "Passed" : "Failed"}`}
-                        />
-                      ))}
+                          className="grid gap-1 pt-1"
+                          style={{
+                            gridTemplateColumns: `repeat(${Math.min(caseResults.length, 30)}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {caseResults.map((result, index) => (
+                            <div
+                              key={index}
+                              className={`h-2 rounded-[2px] ${
+                                result.passed
+                                  ? "bg-status-accepted"
+                                  : result.timedOut
+                                    ? "bg-status-warning"
+                                    : "bg-status-error"
+                              }`}
+                              title={`Test case ${index + 1}: ${
+                                result.passed
+                                  ? "Passed"
+                                  : result.timedOut
+                                    ? "Timed out"
+                                    : "Failed"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
+                          <div
+                            className={`h-full rounded-full ${
+                              isAccepted ? "bg-status-accepted" : "bg-status-warning"
+                            }`}
+                            style={{
+                              width: `${Math.round((passedTests / Math.max(totalTests, 1)) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ) : null}
 
-                  {submissionResult.output && (
-                    <div className="p-3 bg-surface-base rounded-lg border border-white/5">
-                      <p className="font-mono text-[11px] text-text-muted mb-1">Judge Verdict Log:</p>
-                      <pre className="font-mono text-xs text-text-primary whitespace-pre-wrap">
+                  {submissionResult.output ? (
+                    <div className="space-y-1.5 rounded-md border border-border-hairline bg-surface-base p-3">
+                      <p className="font-mono text-[10px] uppercase tracking-wide text-text-muted">
+                        Output
+                      </p>
+                      <pre className="whitespace-pre-wrap font-mono text-xs text-text-primary">
                         {submissionResult.output}
                       </pre>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

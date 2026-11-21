@@ -1,35 +1,44 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
+  Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Copy,
+  FileText,
+  History,
+  Lightbulb,
+  Pause,
   Play,
   Rocket,
-  FileText,
-  Lightbulb,
-  History,
   Sparkles,
   Star,
-  CheckCircle2,
-  Copy,
-  Check,
-  AlertTriangle,
-  RotateCcw,
-  Pause,
   Timer,
-  Clock,
-  BookOpen,
 } from "lucide-react";
+import { toast } from "sonner";
+
 import CodeEditor from "@/components/ui/CodeEditor";
-import ConsolePanel, { type SubmissionResultView, type LiveEvaluationProgress } from "@/components/ui/ConsolePanel";
+import ConsolePanel, {
+  type LiveEvaluationProgress,
+  type SubmissionResultView,
+} from "@/components/ui/ConsolePanel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Markdown } from "@/components/ui/markdown";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Question, Submission, RunResultResponse } from "@/lib/types";
 import { getCodeTemplate } from "@/lib/codeTemplates";
-import { getProblemMetadata } from "@/lib/problemMeta";
+import { getProblemMetadata, hasProblemMetadata } from "@/lib/problemMeta";
 import {
   ApiError,
+  fetchAllQuestions,
   fetchQuestionById,
-  fetchQuestions,
   fetchUserSubmissions,
   getBookmarkedProblemIds,
   pollForSubmissionResult,
@@ -38,176 +47,237 @@ import {
   subscribeToSubmissionStream,
   toggleBookmarkedProblem,
 } from "@/lib/api";
+import {
+  clearDraft,
+  consumeForkPayload,
+  getDraft,
+  getPreferredLanguage,
+  saveDraft,
+  setPreferredLanguage,
+} from "@/lib/drafts";
+import {
+  formatDateTime,
+  formatRelativeTime,
+  getDifficultyMeta,
+  getModifierKey,
+  getStatusMeta,
+} from "@/lib/ui";
+import { usePageTitle } from "@/lib/usePageTitle";
 
 const LANGUAGES = [
   { value: "python", label: "Python 3" },
   { value: "cpp", label: "C++ 17" },
-  { value: "javascript", label: "JavaScript (Node)" },
+  { value: "javascript", label: "JavaScript" },
 ];
 
-const DIFFICULTY_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  "sum-two-numbers": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "reverse-string": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  fizzbuzz: { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "palindrome-check": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  factorial: { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "max-in-array": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "gcd-two-numbers": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "count-vowels": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "two-sum": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "binary-to-decimal": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-};
+type LeftTab = "description" | "hints" | "submissions" | "editorial";
 
 export default function Editor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const modifier = getModifierKey();
 
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [question, setQuestion] = useState<Question | null>(null);
+  const [pastSubmissions, setPastSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const [language, setLanguage] = useState<string>("python");
-  const [code, setCode] = useState<string>("");
-  const [activeLeftTab, setActiveLeftTab] = useState<"description" | "hints" | "submissions" | "editorial">("description");
   const [isBookmarked, setIsBookmarked] = useState(false);
 
-  // Stopwatch / Timer state
+  const [language, setLanguage] = useState(getPreferredLanguage);
+  const [code, setCode] = useState("");
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [activeLeftTab, setActiveLeftTab] = useState<LeftTab>("description");
+  const [revealedHints, setRevealedHints] = useState(0);
+  const [copiedExampleIndex, setCopiedExampleIndex] = useState<number | null>(null);
+
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(true);
 
-  // Run Code state
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<RunResultResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [customInputs, setCustomInputs] = useState<string[]>([]);
   const [isConsoleOpen, setIsConsoleOpen] = useState(true);
 
-  // Submit Code state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [liveProgress, setLiveProgress] = useState<LiveEvaluationProgress | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResultView | null>(null);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [pastSubmissions, setPastSubmissions] = useState<Submission[]>([]);
-  const [copiedExampleIndex, setCopiedExampleIndex] = useState<number | null>(null);
-
-  // Resizable Panes State
-  const [leftPanePercent, setLeftPanePercent] = useState<number>(45);
-  const [consoleHeight, setConsoleHeight] = useState<number>(260);
+  const [leftPanePercent, setLeftPanePercent] = useState(45);
+  const [consoleHeight, setConsoleHeight] = useState(280);
   const [isDraggingH, setIsDraggingH] = useState(false);
   const [isDraggingV, setIsDraggingV] = useState(false);
+
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
+  const draftTimerRef = useRef<number | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const runActionRef = useRef<() => void>(() => {});
+  const submitActionRef = useRef<() => void>(() => {});
 
-  // Load question, past user submissions, and all questions list
+  usePageTitle(question?.title ?? "Problem");
+
+  const refreshSubmissions = useCallback(async () => {
+    if (!id) return;
+    try {
+      const { submissions } = await fetchUserSubmissions({ questionId: id, limit: 50 });
+      setPastSubmissions(submissions);
+    } catch {
+      // Keep the existing list if the refresh fails.
+    }
+  }, [id]);
+
   useEffect(() => {
-    async function loadData() {
+    let cancelled = false;
+
+    async function loadProblem() {
       if (!id) return;
       setLoading(true);
       setLoadError(null);
+      setRunResult(null);
+      setSubmissionResult(null);
+      setSubmitError(null);
+      setRunError(null);
+      setLiveProgress(null);
+      setPollTimedOut(false);
+      setCustomInputs([]);
+      setRevealedHints(0);
+      setActiveLeftTab("description");
+      setTimerSeconds(0);
+      setIsTimerRunning(true);
+      setIsConsoleOpen(true);
+
       try {
-        const [qData, list, userSubs] = await Promise.all([
+        const [questionData, questionList, submissionList] = await Promise.all([
           fetchQuestionById(id),
-          fetchQuestions().catch(() => []),
-          fetchUserSubmissions().catch(() => []),
+          fetchAllQuestions().catch(() => []),
+          fetchUserSubmissions({ questionId: id, limit: 50 }).catch(() => ({
+            submissions: [] as Submission[],
+            pagination: { page: 1, limit: 50, total: 0, totalPages: 1 },
+          })),
         ]);
-        setQuestion(qData);
-        setAllQuestions(list);
-        setPastSubmissions(userSubs.filter((s) => s.questionId === id));
+
+        if (cancelled) return;
+
+        setQuestion(questionData);
+        setAllQuestions(questionList);
+        setPastSubmissions(submissionList.submissions);
         setIsBookmarked(getBookmarkedProblemIds().includes(id));
-        if (qData) {
-          setCode(getCodeTemplate(language, qData.id));
-          setCustomInputs([]);
-          setRunResult(null);
+
+        if (questionData) {
+          const preferred = getPreferredLanguage();
+          const nextLanguage = LANGUAGES.some((item) => item.value === preferred)
+            ? preferred
+            : "python";
+          const fork = consumeForkPayload(id);
+
+          if (fork && LANGUAGES.some((item) => item.value === fork.language)) {
+            setLanguage(fork.language);
+            setPreferredLanguage(fork.language);
+            setCode(fork.code);
+            saveDraft(id, fork.language, fork.code);
+            setDraftStatus("saved");
+            toast("Submission loaded into the editor");
+          } else {
+            const draft = getDraft(id, nextLanguage);
+            setLanguage(nextLanguage);
+            setCode(draft ?? getCodeTemplate(nextLanguage, id));
+            setDraftStatus(draft ? "saved" : "idle");
+          }
         }
       } catch (err) {
-        setLoadError(err instanceof Error ? err.message : "Failed to load problem.");
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : "Failed to load the problem.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    loadData();
+
+    loadProblem();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      unsubscribeRef.current?.();
+      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTimerRunning) return;
+    const interval = window.setInterval(() => setTimerSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(interval);
+  }, [isTimerRunning]);
+
+  const persistDraft = useCallback(
+    (value: string, lang: string) => {
+      if (!question) return;
+      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+      saveDraft(question.id, lang, value);
+      setDraftStatus("saved");
+    },
+    [question],
+  );
+
+  const handleCodeChange = (value: string) => {
+    setCode(value);
+    if (!question) return;
+
+    setDraftStatus("saving");
+    if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = window.setTimeout(() => {
+      saveDraft(question.id, language, value);
+      setDraftStatus("saved");
+    }, 600);
+  };
+
+  const handleLanguageChange = (nextLanguage: string) => {
+    if (!question || nextLanguage === language) return;
+
+    persistDraft(code, language);
+    setPreferredLanguage(nextLanguage);
+    setLanguage(nextLanguage);
+
+    const draft = getDraft(question.id, nextLanguage);
+    setCode(draft ?? getCodeTemplate(nextLanguage, question.id));
+    setDraftStatus(draft ? "saved" : "idle");
+    setRunResult(null);
+    setSubmissionResult(null);
+    setSubmitError(null);
+    setRunError(null);
+  };
+
+  const handleResetCode = () => {
+    if (!question) return;
+    const template = getCodeTemplate(language, question.id);
+
+    if (code.trim() !== template.trim()) {
+      const confirmed = window.confirm(
+        "Reset to the starter code? Your current draft for this language will be replaced.",
+      );
+      if (!confirmed) return;
+    }
+
+    clearDraft(question.id, language);
+    setCode(template);
+    setDraftStatus("idle");
+    toast("Starter code restored");
+  };
 
   const handleToggleBookmark = () => {
     if (!question) return;
     const next = toggleBookmarkedProblem(question.id);
     setIsBookmarked(next);
+    toast(next ? "Problem bookmarked" : "Bookmark removed", { description: question.title });
   };
 
-  // Session timer ticker
-  useEffect(() => {
-    let interval: any = null;
-    if (isTimerRunning) {
-      interval = setInterval(() => {
-        setTimerSeconds((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
-
-  const formatTimer = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  };
-
-  // Horizontal splitter handlers
-  const handleMouseDownH = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDraggingH(true);
-  };
-
-  const handleMouseDownV = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDraggingV(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingH && workspaceRef.current) {
-        const rect = workspaceRef.current.getBoundingClientRect();
-        const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
-        if (newLeftPercent >= 25 && newLeftPercent <= 75) {
-          setLeftPanePercent(newLeftPercent);
-        }
-      } else if (isDraggingV && rightPaneRef.current) {
-        const rect = rightPaneRef.current.getBoundingClientRect();
-        const newH = rect.bottom - e.clientY;
-        if (newH >= 120 && newH <= 500) {
-          setConsoleHeight(newH);
-        }
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDraggingH(false);
-      setIsDraggingV(false);
-    };
-
-    if (isDraggingH || isDraggingV) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDraggingH, isDraggingV]);
-
-  // Language switch
-  const handleLanguageChange = (newLang: string) => {
-    setLanguage(newLang);
-    setCode(getCodeTemplate(newLang, question?.id));
-  };
-
-  const handleResetCode = () => {
-    setCode(getCodeTemplate(language, question?.id));
-  };
-
-  // Run Code
   const handleRunCode = async () => {
     if (!question || isRunning || isSubmitting) return;
     setIsRunning(true);
@@ -216,27 +286,30 @@ export default function Editor() {
     setIsConsoleOpen(true);
 
     try {
-      const res = await runCodeAPI({
+      const result = await runCodeAPI({
         questionId: question.id,
         code,
         language,
         customTestCases: customInputs.length > 0 ? customInputs : undefined,
       });
-      setRunResult(res);
+      setRunResult(result);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         navigate("/auth");
         return;
       }
-      setRunError(err instanceof Error ? err.message : "Execution failed.");
+      setRunError(err instanceof Error ? err.message : "Run failed.");
     } finally {
       setIsRunning(false);
     }
   };
 
-  // Submit Code with Server-Sent Events (SSE) live streaming
   const handleSubmitCode = async () => {
     if (!question || isSubmitting || isRunning) return;
+
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+
     setIsSubmitting(true);
     setLiveProgress(null);
     setSubmissionResult(null);
@@ -247,35 +320,45 @@ export default function Editor() {
     try {
       const submissionId = await submitCodeAPI({ questionId: question.id, code, language });
 
-      // Subscribe to real-time evaluation updates streamed via Redis Pub/Sub
-      subscribeToSubmissionStream(
+      unsubscribeRef.current = subscribeToSubmissionStream(
         submissionId,
         (event) => {
           if (event.type === "compiling") {
             setLiveProgress({ phase: "compiling" });
-          } else if (event.type === "testcase") {
+            return;
+          }
+
+          if (event.type === "testcase") {
             setLiveProgress({
               phase: "testcase",
               current: event.current,
               total: event.total,
               passed: event.passed,
             });
-          } else if (event.type === "completed") {
-            setLiveProgress(null);
-            setIsSubmitting(false);
-            setSubmissionResult({
-              status: event.status,
-              output: event.output,
-              passedCount: event.passedCount ?? 0,
-              totalCount: event.totalCount ?? (question.testCases?.length || 0),
+            return;
+          }
+
+          unsubscribeRef.current?.();
+          unsubscribeRef.current = null;
+          setLiveProgress(null);
+          setIsSubmitting(false);
+          setSubmissionResult({
+            status: event.status,
+            output: event.output,
+            passedCount: event.passedCount ?? 0,
+            totalCount: event.totalCount ?? 0,
+            cases: event.cases,
+          });
+          refreshSubmissions();
+
+          const meta = getStatusMeta(event.status);
+          if (meta.tone === "success") {
+            toast.success("Accepted", {
+              description: `${event.passedCount ?? 0} / ${event.totalCount ?? 0} test cases passed`,
             });
-            fetchUserSubmissions()
-              .then((subs) => setPastSubmissions(subs.filter((s) => s.questionId === question.id)))
-              .catch(() => {});
           }
         },
         async () => {
-          // Fallback to polling if SSE encounters a network failure
           try {
             const result = await pollForSubmissionResult(submissionId);
             if (result) {
@@ -284,8 +367,12 @@ export default function Editor() {
                 output: result.output,
                 passedCount: result.passedCount,
                 totalCount: result.totalCount,
+                cases: result.results.map((item) => ({
+                  passed: item.passed,
+                  timedOut: item.timedOut,
+                })),
               });
-              setPastSubmissions((prev) => [result, ...prev]);
+              refreshSubmissions();
             } else {
               setPollTimedOut(true);
             }
@@ -306,39 +393,91 @@ export default function Editor() {
     }
   };
 
-  // Keyboard shortcut listeners
+  runActionRef.current = handleRunCode;
+  submitActionRef.current = handleSubmitCode;
+
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "'") {
-        e.preventDefault();
-        handleRunCode();
-      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSubmitCode();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitActionRef.current();
+      } else if (event.key === "'") {
+        event.preventDefault();
+        runActionRef.current();
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [code, language, question, isRunning, isSubmitting, customInputs]);
+  }, []);
 
-  // Previous and Next Problem
-  const currentIndex = allQuestions.findIndex((q) => q.id === id);
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (isDraggingH && workspaceRef.current) {
+        const rect = workspaceRef.current.getBoundingClientRect();
+        const nextPercent = ((event.clientX - rect.left) / rect.width) * 100;
+        if (nextPercent >= 28 && nextPercent <= 72) {
+          setLeftPanePercent(nextPercent);
+        }
+      } else if (isDraggingV && rightPaneRef.current) {
+        const rect = rightPaneRef.current.getBoundingClientRect();
+        const nextHeight = rect.bottom - event.clientY;
+        if (nextHeight >= 140 && nextHeight <= 520) {
+          setConsoleHeight(nextHeight);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingH(false);
+      setIsDraggingV(false);
+    };
+
+    if (isDraggingH || isDraggingV) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingH, isDraggingV]);
+
+  const currentIndex = allQuestions.findIndex((item) => item.id === id);
   const prevQuestion = currentIndex > 0 ? allQuestions[currentIndex - 1] : null;
-  const nextQuestion = currentIndex >= 0 && currentIndex < allQuestions.length - 1 ? allQuestions[currentIndex + 1] : null;
-  const diffLabel = question?.difficulty || (question?.id ? DIFFICULTY_MAP[question.id]?.label : "Easy");
-  const diffColor = diffLabel === "Hard" ? "text-status-error" : diffLabel === "Medium" ? "text-status-warning" : "text-status-accepted";
-  const diffBg = diffLabel === "Hard" ? "bg-status-error/10 border-status-error/20" : diffLabel === "Medium" ? "bg-status-warning/10 border-status-warning/20" : "bg-status-accepted/10 border-status-accepted/20";
-  const diff = { label: diffLabel, color: diffColor, bg: diffBg };
-  const metadata = getProblemMetadata(question?.id);
-  const isSolved = pastSubmissions.some((s) => s.status === "Success" || (s.status as string) === "Accepted");
+  const nextQuestion =
+    currentIndex >= 0 && currentIndex < allQuestions.length - 1
+      ? allQuestions[currentIndex + 1]
+      : null;
+
+  const isSolved = pastSubmissions.some(
+    (submission) => submission.status === "Success" || submission.status === "Accepted",
+  );
   const hasAttempted = pastSubmissions.length > 0;
+  const difficulty = getDifficultyMeta(question?.difficulty);
+  const metadata = getProblemMetadata(question?.id);
+  const showEditorial = hasProblemMetadata(question?.id);
+  const sampleCases = question?.testCases?.filter((testCase) => testCase.isSample) ?? [];
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-base text-text-muted font-mono text-xs">
-        <div className="flex items-center gap-3">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
-          <span>Mounting isolated sandbox workspace...</span>
+      <div className="min-h-dvh bg-surface-base font-sans text-text-primary">
+        <div className="border-b border-border-hairline px-6 py-4">
+          <Skeleton className="h-6 w-64" />
+        </div>
+        <div className="grid min-h-[calc(100dvh-64px)] grid-cols-2">
+          <div className="space-y-4 border-r border-border-hairline p-6">
+            <Skeleton className="h-8 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-4/6" />
+          </div>
+          <div className="p-4">
+            <Skeleton className="h-full w-full" />
+          </div>
         </div>
       </div>
     );
@@ -346,520 +485,524 @@ export default function Editor() {
 
   if (loadError || !question) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-surface-base text-text-muted gap-3 font-sans">
-        <AlertTriangle className="h-7 w-7 text-status-error" />
-        <p className="font-display text-xl font-bold text-text-primary">
-          {loadError ? "Challenge Unavailable" : "Challenge not found"}
-        </p>
-        <Link to="/" className="mt-2 text-xs text-primary-container hover:underline font-mono">
-          Return to Hub
-        </Link>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-surface-base px-4 font-sans">
+        <EmptyState
+          icon={AlertTriangle}
+          title={loadError ? "Could not load this problem" : "Problem not found"}
+          description={
+            loadError ?? "The problem you are looking for does not exist or is no longer available."
+          }
+          action={
+            <Button variant="secondary" asChild>
+              <Link to="/">
+                <ArrowLeft />
+                Back to problems
+              </Link>
+            </Button>
+          }
+          className="max-w-md"
+        />
       </div>
     );
   }
 
   return (
     <div
-      className={`flex h-screen flex-col bg-surface-base text-text-primary font-sans overflow-hidden select-none ${
-        isDraggingH || isDraggingV ? "cursor-col-resize select-none" : ""
+      className={`flex h-dvh flex-col overflow-hidden bg-surface-base font-sans text-text-primary ${
+        isDraggingH || isDraggingV ? "select-none" : ""
       }`}
     >
-      {/* 1. SUB-HEADER WORKSPACE BAR (44px) */}
-      <header className="h-11 w-full bg-surface-elevated/95 backdrop-blur-md px-4 flex items-center justify-between shadow-sm shrink-0 z-30 border-b border-white/5 select-none">
-        {/* Left: Navigation & Problem Metadata */}
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border-hairline bg-surface-elevated px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             to="/"
-            className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors font-medium"
+            className="flex items-center gap-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Problems</span>
           </Link>
 
-          <div className="flex items-center bg-surface-base rounded px-0.5 py-0.5 border border-white/5">
+          <div className="flex items-center rounded border border-border-hairline bg-surface-base">
             {prevQuestion ? (
               <Link
                 to={`/problem/${prevQuestion.id}`}
                 title={`Previous: ${prevQuestion.title}`}
-                className="p-1 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors"
+                aria-label={`Previous problem: ${prevQuestion.title}`}
+                className="rounded p-1 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <span className="p-1 text-text-muted/30 cursor-not-allowed">
+              <span className="p-1 text-text-muted/30">
                 <ChevronLeft className="h-3.5 w-3.5" />
               </span>
             )}
-
             {nextQuestion ? (
               <Link
                 to={`/problem/${nextQuestion.id}`}
                 title={`Next: ${nextQuestion.title}`}
-                className="p-1 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors"
+                aria-label={`Next problem: ${nextQuestion.title}`}
+                className="rounded p-1 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
-              <span className="p-1 text-text-muted/30 cursor-not-allowed">
+              <span className="p-1 text-text-muted/30">
                 <ChevronRight className="h-3.5 w-3.5" />
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="font-display text-sm leading-5 text-text-primary font-semibold truncate tracking-tight">
-              #{currentIndex + 1}. {question.title}
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate font-display text-sm font-medium tracking-tight text-text-primary">
+              {currentIndex >= 0 ? `${currentIndex + 1}. ` : ""}
+              {question.title}
             </h1>
-            {diff && (
-              <span className={`px-2 py-0.5 rounded font-mono text-[10px] uppercase font-semibold border ${diff.bg} ${diff.color}`}>
-                {diff.label}
-              </span>
-            )}
+            <Badge variant={difficulty.tone} className="hidden shrink-0 sm:inline-flex">
+              {difficulty.label}
+            </Badge>
+            {isSolved ? (
+              <CheckCircle2
+                className="hidden h-3.5 w-3.5 shrink-0 text-status-accepted sm:block"
+                aria-label="Solved"
+              />
+            ) : null}
           </div>
         </div>
 
-        {/* Center: Interactive Session Clock Widget */}
-        <div className="hidden md:flex items-center gap-2 bg-surface-base px-2.5 py-1 rounded-full shadow-inner border border-white/5">
-          <span className="relative flex h-2 w-2">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-status-accepted opacity-75 ${!isTimerRunning ? "hidden" : ""}`} />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-status-accepted" />
+        <div className="hidden items-center gap-2 rounded-full border border-border-hairline bg-surface-base px-2.5 py-1 md:flex">
+          <Timer className="h-3.5 w-3.5 text-text-muted" />
+          <span className="font-mono text-xs font-medium tabular-nums text-text-primary">
+            {String(Math.floor(timerSeconds / 60)).padStart(2, "0")}:
+            {String(timerSeconds % 60).padStart(2, "0")}
           </span>
-
-          <div className="flex items-center gap-1.5 font-mono text-xs text-text-primary font-semibold tracking-wider">
-            <Timer className="h-3.5 w-3.5 text-text-muted" />
-            <span>{formatTimer(timerSeconds)}</span>
-          </div>
-
           <button
             type="button"
-            onClick={() => setIsTimerRunning((prev) => !prev)}
-            aria-label="Pause/Resume Timer"
-            className="text-text-muted hover:text-text-primary ml-0.5 flex items-center cursor-pointer"
+            onClick={() => setIsTimerRunning((value) => !value)}
+            aria-label={isTimerRunning ? "Pause session timer" : "Resume session timer"}
+            className="text-text-muted transition-colors hover:text-text-primary"
           >
             {isTimerRunning ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
           </button>
-
-          <span className="w-1 h-1 rounded-full bg-white/20" />
-          <span className="font-mono text-[9px] uppercase tracking-widest text-text-secondary bg-surface-container px-1.5 py-0.5 rounded">
-            Interview Mode
-          </span>
         </div>
 
-        {/* Right: Language Selector & Run/Submit Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          <select
-            value={language}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            disabled={isSubmitting || isRunning}
-            className="h-7.5 rounded bg-surface-base hover:bg-surface-hover text-text-primary font-mono text-xs px-2.5 border border-white/10 focus:outline-none cursor-pointer"
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span
+            className="hidden font-mono text-[10px] text-text-muted lg:inline"
+            aria-live="polite"
           >
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
+            {draftStatus === "saving" ? "Saving…" : draftStatus === "saved" ? "Draft saved" : ""}
+          </span>
+
+          <Select
+            value={language}
+            onChange={(event) => handleLanguageChange(event.target.value)}
+            disabled={isSubmitting || isRunning}
+            aria-label="Language"
+            className="h-7 w-32 text-xs"
+          >
+            {LANGUAGES.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <button
-            type="button"
-            onClick={handleResetCode}
-            title="Reset code"
-            className="p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-hover rounded transition-colors hidden sm:flex cursor-pointer"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
-
-          {/* Run Action */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting}
-            className="group flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-hover hover:bg-surface-container-high text-text-primary text-xs font-medium border border-white/5 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
-            <Play className={`h-3 w-3 text-text-secondary group-hover:text-status-accepted transition-colors ${isRunning ? "animate-spin" : ""}`} />
-            <span>{isRunning ? "Running..." : "Run"}</span>
-            <kbd className="hidden sm:inline font-mono text-[10px] text-text-muted bg-surface-base px-1 py-0.5 rounded shadow-xs">
-              ⌘'
-            </kbd>
-          </button>
+            <Play className={isRunning ? "animate-spin" : undefined} />
+            {isRunning ? "Running" : "Run"}
+            <kbd className="hidden font-mono text-[10px] text-text-muted lg:inline">{modifier}'</kbd>
+          </Button>
 
-          {/* Submit Action */}
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSubmitCode}
             disabled={isSubmitting || isRunning}
-            className="group flex items-center gap-1.5 px-3.5 py-1.5 rounded bg-primary-container hover:bg-brand-wine-deep text-on-primary-container text-xs font-semibold tracking-wide transition-all shadow-[0_0_20px_-3px_rgba(225,29,72,0.45)] active:scale-[0.98] cursor-pointer disabled:opacity-50"
           >
-            <Rocket className="h-3 w-3" />
-            <span>{isSubmitting ? "Submitting..." : "Submit"}</span>
-            <kbd className="hidden sm:inline font-mono text-[10px] text-on-primary-container/80 bg-black/20 px-1 py-0.5 rounded">
-              ⌘↵
+            <Rocket />
+            {isSubmitting ? "Submitting" : "Submit"}
+            <kbd className="hidden font-mono text-[10px] text-white/70 lg:inline">
+              {modifier}↵
             </kbd>
-          </button>
+          </Button>
         </div>
       </header>
 
-      {/* Error alert bar */}
-      {(runError || submitError) && (
-        <div className="flex items-center gap-2 bg-status-error/10 border-b border-status-error/30 px-4 py-1.5 text-xs text-status-error shrink-0">
+      {runError || submitError ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 border-b border-status-error/30 bg-status-error/10 px-4 py-1.5 text-xs text-status-error"
+        >
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>{runError || submitError}</span>
         </div>
-      )}
+      ) : null}
 
-      {/* 2. SPLIT WORKSPACE (Dual Resizable Panes) */}
-      <div ref={workspaceRef} className="flex flex-1 overflow-hidden relative">
-        {/* LEFT PANE: Problem Dossier */}
-        <div
+      <div ref={workspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+        <section
           style={{ width: `${leftPanePercent}%` }}
-          className="flex flex-col bg-surface-elevated overflow-hidden shrink-0 border-r border-white/5 shadow-sm"
+          className="flex min-w-[320px] shrink-0 flex-col overflow-hidden border-r border-border-hairline bg-surface-elevated"
+          aria-label="Problem details"
         >
-          {/* Dossier Header Tabs */}
-          <div className="h-10 bg-surface-base/80 px-4 flex items-center gap-6 shrink-0 border-b border-white/5 select-none text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveLeftTab("description")}
-              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
-                activeLeftTab === "description"
-                  ? "text-text-primary font-semibold"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5 text-primary" />
-              <span>Description</span>
-              {activeLeftTab === "description" && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveLeftTab("hints")}
-              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
-                activeLeftTab === "hints"
-                  ? "text-text-primary font-semibold"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              <Lightbulb className="h-3.5 w-3.5 text-status-warning" />
-              <span>Hints</span>
-              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-surface-container text-text-muted">
-                {metadata.hints.length}
-              </span>
-              {activeLeftTab === "hints" && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveLeftTab("submissions")}
-              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
-                activeLeftTab === "submissions"
-                  ? "text-text-primary font-semibold"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              <History className="h-3.5 w-3.5 text-status-accepted" />
-              <span>Submissions</span>
-              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-status-accepted/10 text-status-accepted font-semibold">
-                {pastSubmissions.length}
-              </span>
-              {activeLeftTab === "submissions" && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveLeftTab("editorial")}
-              className={`relative flex items-center gap-1.5 h-full transition-colors cursor-pointer ${
-                activeLeftTab === "editorial"
-                  ? "text-text-primary font-semibold"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>Editorial</span>
-              {activeLeftTab === "editorial" && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-primary-container" />
-              )}
-            </button>
+          <div
+            role="tablist"
+            aria-label="Problem panels"
+            className="flex h-10 shrink-0 items-center gap-1 border-b border-border-hairline bg-surface-base/60 px-3"
+          >
+            {[
+              { id: "description" as const, label: "Description", icon: FileText },
+              { id: "hints" as const, label: "Hints", icon: Lightbulb },
+              { id: "submissions" as const, label: "Submissions", icon: History },
+              ...(showEditorial
+                ? [{ id: "editorial" as const, label: "Approach", icon: Sparkles }]
+                : []),
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeLeftTab === tab.id}
+                onClick={() => setActiveLeftTab(tab.id)}
+                className={`relative flex h-full items-center gap-1.5 px-2 text-xs transition-colors ${
+                  activeLeftTab === tab.id
+                    ? "font-medium text-text-primary"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+                {tab.id === "hints" ? (
+                  <span className="font-mono text-[10px] text-text-muted">{metadata.hints.length}</span>
+                ) : null}
+                {tab.id === "submissions" ? (
+                  <span className="font-mono text-[10px] text-text-muted">
+                    {pastSubmissions.length}
+                  </span>
+                ) : null}
+                {activeLeftTab === tab.id ? (
+                  <span className="absolute inset-x-0 bottom-0 h-[2px] bg-primary-container" />
+                ) : null}
+              </button>
+            ))}
           </div>
 
-          {/* Dossier Content Area */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm text-text-secondary select-text">
-            {activeLeftTab === "description" && (
-              <div className="space-y-4">
-                {/* Title & Stats */}
+          <div className="flex-1 select-text overflow-y-auto p-5 text-sm text-text-secondary">
+            {activeLeftTab === "description" ? (
+              <div className="space-y-5">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-display text-xl font-bold text-text-primary tracking-tight">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                       {question.title}
                     </h2>
                     <button
                       type="button"
                       onClick={handleToggleBookmark}
-                      className="text-text-muted hover:text-status-warning transition-colors cursor-pointer p-1 rounded hover:bg-surface-base"
-                      title={isBookmarked ? "Remove Bookmark" : "Bookmark Problem"}
+                      aria-label={isBookmarked ? "Remove bookmark" : "Bookmark problem"}
+                      aria-pressed={isBookmarked}
+                      className="rounded p-1 text-text-muted transition-colors hover:bg-surface-base hover:text-status-warning"
                     >
-                      <Star className={`h-4 w-4 ${isBookmarked ? "text-status-warning fill-current" : ""}`} />
+                      <Star className={`h-4 w-4 ${isBookmarked ? "fill-current text-status-warning" : ""}`} />
                     </button>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 font-mono text-xs pt-0.5">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant={difficulty.tone}>{difficulty.label}</Badge>
                     {isSolved ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-medium">
-                        <CheckCircle2 className="h-3 w-3" /> Solved
-                      </span>
+                      <Badge variant="success">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Solved
+                      </Badge>
                     ) : hasAttempted ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-warning/10 text-status-warning font-medium">
-                        <Clock className="h-3 w-3" /> Attempted
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-text-muted font-medium">
-                        Unsolved
-                      </span>
-                    )}
-                    <span className="text-text-muted">{question.testCases?.length || 0} Testcases</span>
-                    <span className="text-text-muted">•</span>
-                    <span className="text-text-muted">{pastSubmissions.length} Submissions Logged</span>
+                      <Badge variant="warning">
+                        <Clock className="h-3 w-3" />
+                        Attempted
+                      </Badge>
+                    ) : null}
+                    <span className="text-text-muted">{question.category ?? "Uncategorized"}</span>
+                    <span className="text-text-muted">·</span>
+                    <span className="text-text-muted">{sampleCases.length} sample cases</span>
                   </div>
                 </div>
 
-                {/* Statement */}
-                <div className="whitespace-pre-line text-sm leading-relaxed text-text-primary/90 font-sans border-t border-white/5 pt-3">
-                  {question.description}
+                <div className="border-t border-border-hairline pt-4">
+                  <Markdown content={question.description} />
                 </div>
 
-                {/* Curated Examples */}
-                {question.testCases && question.testCases.some((tc) => tc.isSample) && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="font-mono text-xs uppercase tracking-wider text-text-muted font-semibold">
-                      Curated Test Vectors
+                {sampleCases.length > 0 ? (
+                  <div className="space-y-3 pt-1">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                      Examples
                     </h3>
-                    {question.testCases
-                      .filter((tc) => tc.isSample)
-                      .map((tc, index) => (
-                        <div
-                          key={tc.id || index}
-                          className="rounded-xl border border-white/5 bg-surface-base p-3.5 space-y-2 font-mono text-xs shadow-xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-sans font-semibold text-text-primary text-xs">
-                              Example {index + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(tc.input);
-                                setCopiedExampleIndex(index);
-                                setTimeout(() => setCopiedExampleIndex(null), 1500);
-                              }}
-                              className="flex items-center gap-1 text-[11px] text-text-muted hover:text-text-primary font-sans cursor-pointer"
-                            >
-                              {copiedExampleIndex === index ? (
-                                <>
-                                  <Check className="h-3 w-3 text-status-accepted" />
-                                  <span className="text-status-accepted">Copied</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-3 w-3" />
-                                  <span>Copy Input</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          <div className="bg-surface-elevated/70 p-2.5 rounded-lg border border-white/5 space-y-1">
-                            <div>
-                              <span className="text-text-muted select-none">Input: </span>
-                              <span className="text-text-primary font-semibold">{tc.input}</span>
-                            </div>
-                            <div>
-                              <span className="text-text-muted select-none">Expected Output: </span>
-                              <span className="text-status-accepted font-semibold">{tc.expectedOutput}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* HINTS TAB */}
-            {activeLeftTab === "hints" && (
-              <div className="space-y-4 font-sans">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-base font-bold text-text-primary">Progressive Hints</h3>
-                  <span className="font-mono text-xs text-text-muted">{metadata.hints.length} hints available</span>
-                </div>
-                <div className="space-y-3">
-                  {metadata.hints.map((hint, index) => (
-                    <div key={index} className="p-3.5 rounded-xl bg-surface-base border border-white/5 space-y-1.5 shadow-xs">
-                      <p className="font-mono text-xs font-semibold text-status-warning">Hint {index + 1}</p>
-                      <p className="text-xs text-text-secondary leading-relaxed">{hint}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* SUBMISSIONS TAB */}
-            {activeLeftTab === "submissions" && (
-              <div className="space-y-4 font-sans">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-base font-bold text-text-primary">Submissions History</h3>
-                  <span className="font-mono text-xs text-text-muted">{pastSubmissions.length} logged</span>
-                </div>
-                {pastSubmissions.length === 0 ? (
-                  <p className="text-xs text-text-muted py-6 text-center bg-surface-base rounded-xl border border-white/5">
-                    No submissions logged yet for this challenge. Click Submit to evaluate your solution.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {pastSubmissions.map((sub) => (
+                    {sampleCases.map((testCase, index) => (
                       <div
-                        key={sub.id}
-                        className="rounded-xl border border-white/5 bg-surface-base p-3.5 hover:border-white/20 transition-colors shadow-xs space-y-2"
+                        key={testCase.id || index}
+                        className="space-y-2 rounded-md border border-border-hairline bg-surface-base p-3.5 font-mono text-xs"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`flex items-center gap-1 text-xs font-mono font-bold ${
-                                sub.status === "Success" ? "text-status-accepted" : "text-status-error"
-                              }`}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              {sub.status === "Success" ? "Accepted" : sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
-                            </span>
-                            <span className="text-[10px] text-text-muted font-mono bg-surface-elevated border border-white/5 px-1.5 py-0.5 rounded uppercase">
-                              {sub.language}
-                            </span>
-                          </div>
-                          <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-elevated text-text-primary border border-white/5">
-                            {sub.passedCount}/{sub.totalCount} Passed
+                          <span className="font-sans text-xs font-medium text-text-primary">
+                            Example {index + 1}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(testCase.input);
+                              setCopiedExampleIndex(index);
+                              setTimeout(() => setCopiedExampleIndex(null), 1500);
+                            }}
+                            className="flex items-center gap-1 font-sans text-[11px] text-text-muted transition-colors hover:text-text-primary"
+                          >
+                            {copiedExampleIndex === index ? (
+                              <>
+                                <Check className="h-3 w-3 text-status-accepted" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3" />
+                                Copy input
+                              </>
+                            )}
+                          </button>
                         </div>
 
-                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-mono text-text-muted">
-                          <span>{new Date(sub.createdAt).toLocaleString()}</span>
-                          {sub.code && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCode(sub.code);
-                                if (sub.language) setLanguage(sub.language);
-                              }}
-                              className="text-primary hover:underline hover:text-on-primary-container transition-colors cursor-pointer"
-                            >
-                              Load Into Editor
-                            </button>
-                          )}
+                        <div className="space-y-1 rounded border border-border-hairline bg-surface-elevated/60 p-2.5">
+                          <div>
+                            <span className="select-none text-text-muted">Input: </span>
+                            <span className="font-semibold text-text-primary">{testCase.input}</span>
+                          </div>
+                          <div>
+                            <span className="select-none text-text-muted">Output: </span>
+                            <span className="font-semibold text-status-accepted">
+                              {testCase.expectedOutput}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {activeLeftTab === "hints" ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-display text-base font-semibold text-text-primary">Hints</h3>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Reveal hints one at a time if you get stuck.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {metadata.hints.slice(0, revealedHints).map((hint, index) => (
+                    <div
+                      key={index}
+                      className="space-y-1 rounded-md border border-border-hairline bg-surface-base p-3.5"
+                    >
+                      <p className="font-mono text-[11px] font-medium text-status-warning">
+                        Hint {index + 1}
+                      </p>
+                      <p className="text-xs leading-6 text-text-secondary">{hint}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {revealedHints < metadata.hints.length ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setRevealedHints((value) => value + 1)}
+                  >
+                    <Lightbulb />
+                    {revealedHints === 0 ? "Reveal first hint" : "Reveal next hint"}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-text-muted">All hints revealed.</p>
                 )}
               </div>
-            )}
+            ) : null}
 
-            {/* EDITORIAL TAB */}
-            {activeLeftTab === "editorial" && (
-              <div className="space-y-4 font-sans">
-                <div>
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-primary font-semibold">
-                    Algorithmic Approach
+            {activeLeftTab === "submissions" ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base font-semibold text-text-primary">
+                    Your submissions
+                  </h3>
+                  <span className="text-xs text-text-muted">
+                    {pastSubmissions.length} shown
                   </span>
-                  <h3 className="font-display text-base font-bold text-text-primary mt-0.5">
+                </div>
+
+                {pastSubmissions.length === 0 ? (
+                  <EmptyState
+                    icon={History}
+                    title="No submissions yet"
+                    description="Submit a solution to see your verdicts and previous code here."
+                    className="bg-surface-base"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {pastSubmissions.map((submission) => {
+                      const meta = getStatusMeta(submission.status);
+                      return (
+                        <div
+                          key={submission.id}
+                          className="space-y-2 rounded-md border border-border-hairline bg-surface-base p-3.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={meta.tone}>{meta.label}</Badge>
+                              <span className="font-mono text-[10px] uppercase text-text-muted">
+                                {submission.language}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[11px] text-text-muted">
+                              {submission.passedCount}/{submission.totalCount}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 border-t border-border-hairline pt-2 text-[11px] text-text-muted">
+                            <span title={formatDateTime(submission.createdAt)}>
+                              {formatRelativeTime(submission.createdAt)}
+                            </span>
+                            {submission.code ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  persistDraft(code, language);
+                                  setLanguage(submission.language);
+                                  setPreferredLanguage(submission.language);
+                                  setCode(submission.code);
+                                  saveDraft(question.id, submission.language, submission.code);
+                                  setDraftStatus("saved");
+                                  toast("Submission loaded into the editor");
+                                }}
+                                className="text-primary transition-colors hover:text-text-primary"
+                              >
+                                Load code
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {activeLeftTab === "editorial" && showEditorial ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Approach
+                  </p>
+                  <h3 className="mt-1 font-display text-base font-semibold text-text-primary">
                     {metadata.approach}
                   </h3>
                 </div>
 
-                {/* Complexity Specs */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-3 rounded-xl bg-surface-base border border-white/5 space-y-1 shadow-xs">
-                    <span className="font-mono text-[10px] uppercase text-text-muted font-semibold">Time Complexity</span>
-                    <p className="font-mono text-sm font-bold text-status-accepted">{metadata.timeComplexity}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1 rounded-md border border-border-hairline bg-surface-base p-3">
+                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                      Time complexity
+                    </span>
+                    <p className="font-mono text-sm font-semibold text-status-accepted">
+                      {metadata.timeComplexity}
+                    </p>
                   </div>
-                  <div className="p-3 rounded-xl bg-surface-base border border-white/5 space-y-1 shadow-xs">
-                    <span className="font-mono text-[10px] uppercase text-text-muted font-semibold">Space Complexity</span>
-                    <p className="font-mono text-sm font-bold text-tertiary">{metadata.spaceComplexity}</p>
+                  <div className="space-y-1 rounded-md border border-border-hairline bg-surface-base p-3">
+                    <span className="text-[10px] uppercase tracking-wide text-text-muted">
+                      Space complexity
+                    </span>
+                    <p className="font-mono text-sm font-semibold text-tertiary">
+                      {metadata.spaceComplexity}
+                    </p>
                   </div>
                 </div>
 
-                {/* Detailed Walkthrough */}
-                <div className="p-4 rounded-xl bg-surface-base border border-white/5 space-y-2 shadow-xs">
-                  <h4 className="font-mono text-xs uppercase tracking-wider text-text-muted font-semibold">
-                    Explanation &amp; Correctness
+                <div className="space-y-2 rounded-md border border-border-hairline bg-surface-base p-4">
+                  <h4 className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                    Explanation
                   </h4>
-                  <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">
+                  <p className="whitespace-pre-line text-xs leading-6 text-text-secondary">
                     {metadata.explanation}
                   </p>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
-        </div>
+        </section>
 
-        {/* DRAGGABLE HORIZONTAL SPLIT DIVIDER */}
         <div
-          onMouseDown={handleMouseDownH}
-          className="w-1.5 hover:w-2 hover:bg-primary-container/40 bg-white/5 cursor-col-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize problem and editor panes"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            setIsDraggingH(true);
+          }}
+          className="z-20 flex w-1.5 shrink-0 cursor-col-resize items-center justify-center bg-border-hairline transition-colors hover:bg-primary-container/40"
         >
-          <div className="h-8 w-0.5 rounded-full bg-white/20 group-hover:bg-primary-container" />
+          <div className="h-8 w-0.5 rounded-full bg-white/20" />
         </div>
 
-        {/* RIGHT PANE: Code Editor & Console Drawer */}
-        <div
+        <section
           ref={rightPaneRef}
           style={{ width: `${100 - leftPanePercent}%` }}
-          className="flex flex-col bg-surface-base overflow-hidden relative"
+          className="relative flex min-w-0 flex-col overflow-hidden bg-surface-base"
+          aria-label="Code editor"
         >
-          {/* Upper Section: Code Editor */}
-          <div className="flex-1 p-2 overflow-hidden min-h-0">
+          <div className="min-h-0 flex-1 p-2">
             <CodeEditor
               code={code}
-              onChange={setCode}
+              onChange={handleCodeChange}
               language={language}
-              onRun={handleRunCode}
-              onSubmit={handleSubmitCode}
               onReset={handleResetCode}
               disabled={isSubmitting || isRunning}
             />
           </div>
 
-          {/* DRAGGABLE VERTICAL SPLIT DIVIDER */}
-          {isConsoleOpen && (
+          {isConsoleOpen ? (
             <div
-              onMouseDown={handleMouseDownV}
-              className="h-1.5 hover:h-2 hover:bg-primary-container/40 bg-white/5 cursor-row-resize z-20 flex items-center justify-center group transition-colors select-none shrink-0"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize console"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setIsDraggingV(true);
+              }}
+              className="z-20 flex h-1.5 shrink-0 cursor-row-resize items-center justify-center bg-border-hairline transition-colors hover:bg-primary-container/40"
             >
-              <div className="w-8 h-0.5 rounded-full bg-white/20 group-hover:bg-primary-container" />
+              <div className="h-0.5 w-8 rounded-full bg-white/20" />
             </div>
-          )}
+          ) : null}
 
-          {/* Lower Section: Console Panel Drawer */}
-          <div style={isConsoleOpen ? { height: `${consoleHeight}px` } : undefined}>
+          <div
+            style={isConsoleOpen ? { height: `${consoleHeight}px` } : undefined}
+            className="shrink-0 px-2 pb-2"
+          >
             <ConsolePanel
-              testCases={question.testCases || []}
+              testCases={question.testCases ?? []}
               isRunning={isRunning}
               runResult={runResult}
-              onRun={handleRunCode}
               isSubmitting={isSubmitting}
               liveProgress={liveProgress}
               submissionResult={submissionResult}
-              onSubmit={handleSubmitCode}
               pollTimedOut={pollTimedOut}
               customInputs={customInputs}
               onCustomInputsChange={setCustomInputs}
               isOpen={isConsoleOpen}
-              onToggleOpen={() => setIsConsoleOpen((prev) => !prev)}
+              onToggleOpen={() => setIsConsoleOpen((value) => !value)}
             />
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
