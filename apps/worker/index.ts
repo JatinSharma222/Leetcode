@@ -40,6 +40,8 @@ interface RunResult {
   durationMs: number;
 }
 
+const MAX_OUTPUT_BUFFER_BYTES = 256 * 1024; // 256 KB cap per process execution
+
 function runProcess(
   cmd: string,
   args: string[],
@@ -76,14 +78,24 @@ function runProcess(
 
     if (proc.stdout) {
       proc.stdout.on("data", (chunk) => {
-        output += chunk.toString();
+        if (output.length < MAX_OUTPUT_BUFFER_BYTES) {
+          output += chunk.toString();
+          if (output.length >= MAX_OUTPUT_BUFFER_BYTES) {
+            output += "\n[Output truncated: exceeded 256KB buffer limit]";
+          }
+        }
       });
       proc.stdout.on("error", () => {});
     }
 
     if (proc.stderr) {
       proc.stderr.on("data", (chunk) => {
-        error += chunk.toString();
+        if (error.length < MAX_OUTPUT_BUFFER_BYTES) {
+          error += chunk.toString();
+          if (error.length >= MAX_OUTPUT_BUFFER_BYTES) {
+            error += "\n[Stderr truncated: exceeded 256KB buffer limit]";
+          }
+        }
       });
       proc.stderr.on("error", () => {});
     }
@@ -343,11 +355,12 @@ async function handleRunRequest(data: {
     let casesToRun: { input: string; expectedOutput: string; isSample?: boolean }[] = [];
 
     if (customTestCases && Array.isArray(customTestCases) && customTestCases.length > 0) {
-      const dbCases = await prisma.testCase.findMany({
-        where: { questionId },
+      // Security: Only compare against public sample test cases to prevent hidden testcase exfiltration
+      const sampleCases = await prisma.testCase.findMany({
+        where: { questionId, isSample: true },
       });
       casesToRun = customTestCases.map((input) => {
-        const match = dbCases.find((tc) => normalize(tc.input) === normalize(input));
+        const match = sampleCases.find((tc) => normalize(tc.input) === normalize(input));
         return {
           input,
           expectedOutput: match ? match.expectedOutput : "",

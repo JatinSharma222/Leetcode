@@ -198,13 +198,24 @@ export const runCode = async (req: Request, res: Response) => {
       });
     }
 
-    if (
-      customTestCases &&
-      (!Array.isArray(customTestCases) || customTestCases.some((c: any) => typeof c !== "string"))
-    ) {
-      return res.status(400).json({
-        message: "customTestCases must be an array of strings",
-      });
+    if (customTestCases) {
+      if (!Array.isArray(customTestCases) || customTestCases.some((c: any) => typeof c !== "string")) {
+        return res.status(400).json({
+          message: "customTestCases must be an array of strings",
+        });
+      }
+
+      if (customTestCases.length > 10) {
+        return res.status(400).json({
+          message: "A maximum of 10 custom test cases can be submitted per run.",
+        });
+      }
+
+      if (customTestCases.some((c: string) => c.length > 10000)) {
+        return res.status(400).json({
+          message: "Each custom test case cannot exceed 10,000 characters.",
+        });
+      }
     }
 
     const question = await prisma.question.findUnique({
