@@ -131,104 +131,190 @@ function runProcess(
   });
 }
 
+interface ExecutionSession {
+  language: string;
+  tmpDir: string;
+  sourceFile: string;
+  compiledBinaryPath?: string;
+  compileError?: string;
+}
+
 /**
- * Run user code inside a Docker container with strict sandboxing.
- *
- * Security controls applied:
- *   --network=none     → no network access (prevents reverse shells, data exfil)
- *   --memory           → caps RAM usage (prevents memory bombs)
- *   --cpus             → caps CPU usage
- *   --pids-limit       → caps process count (prevents fork bombs)
- *   --read-only        → read-only root filesystem
- *   --tmpfs /tmp       → writable /tmp with size cap (needed for compilation)
- *   --no-new-privileges→ prevents privilege escalation
- *   --rm               → auto-remove container after exit
+ * Phase 1: Prepare execution environment.
+ * For compiled languages (C++), compiles the binary ONCE.
+ * For interpreted languages, performs quick syntax validation.
  */
-async function runInDocker(
-  language: string,
-  code: string,
+async function prepareExecution(language: string, code: string): Promise<ExecutionSession> {
+  const extension = EXTENSION_BY_LANGUAGE[language];
+  const image = DOCKER_IMAGE_BY_LANGUAGE[language];
+  if (!extension || !image) {
+    throw new Error(`Unsupported language: ${language}`);
+  }
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sandbox-"));
+  // Give sandbox user inside container full read/write/exec access to temporary sandbox
+  try {
+    fs.chmodSync(tmpDir, 0o777);
+  } catch {}
+
+  const sourceFile = `solution.${extension}`;
+  const hostSourcePath = path.join(tmpDir, sourceFile);
+  fs.writeFileSync(hostSourcePath, code);
+
+  const session: ExecutionSession = {
+    language,
+    tmpDir,
+    sourceFile,
+  };
+
+  if (language === "cpp") {
+    // Compile C++ source once into binary
+    const compileArgs = [
+      "run",
+      "--rm",
+      "--network=none",
+      "--memory=256m",
+      "--cpus=1.0",
+      "-v", `${tmpDir}:/sandbox`,
+      image,
+      "sh", "-c", "g++ -std=c++17 -O2 -o /sandbox/solution /sandbox/solution.cpp",
+    ];
+
+    const compileResult = await runProcess("docker", compileArgs, "", 10000);
+    if (compileResult.exitCode !== 0 || compileResult.timedOut) {
+      session.compileError =
+        compileResult.error.trim() ||
+        compileResult.output.trim() ||
+        (compileResult.timedOut ? "Compilation timed out (exceeded 10s)" : "Compilation failed");
+    } else {
+      session.compiledBinaryPath = path.join(tmpDir, "solution");
+      try {
+        fs.chmodSync(session.compiledBinaryPath, 0o755);
+      } catch {}
+    }
+  } else if (language === "python") {
+    // Fast syntax validation
+    const checkArgs = [
+      "run",
+      "--rm",
+      "--network=none",
+      "-v", `${hostSourcePath}:/code/solution.py:ro`,
+      image,
+      "python3", "-m", "py_compile", "/code/solution.py",
+    ];
+    const checkResult = await runProcess("docker", checkArgs, "", 5000);
+    if (checkResult.exitCode !== 0) {
+      session.compileError = checkResult.error.trim() || checkResult.output.trim() || "Python syntax error";
+    }
+  } else if (language === "javascript") {
+    // Fast syntax validation
+    const checkArgs = [
+      "run",
+      "--rm",
+      "--network=none",
+      "-v", `${hostSourcePath}:/code/solution.js:ro`,
+      image,
+      "node", "--check", "/code/solution.js",
+    ];
+    const checkResult = await runProcess("docker", checkArgs, "", 5000);
+    if (checkResult.exitCode !== 0) {
+      session.compileError = checkResult.error.trim() || checkResult.output.trim() || "JavaScript syntax error";
+    }
+  }
+
+  return session;
+}
+
+/**
+ * Phase 2: Execute code against input in isolated Docker sandbox.
+ */
+async function runTestInSession(
+  session: ExecutionSession,
   input: string,
   timeoutMs: number,
 ): Promise<RunResult> {
-  const image = DOCKER_IMAGE_BY_LANGUAGE[language];
-  const extension = EXTENSION_BY_LANGUAGE[language];
-  if (!image || !extension) {
+  if (session.compileError) {
     return {
-      exitCode: -1,
+      exitCode: 1,
       output: "",
-      error: `Unsupported language: ${language}`,
+      error: session.compileError,
       timedOut: false,
       durationMs: 0,
     };
   }
 
-  // Write code to a unique temp file on the host
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sandbox-"));
-  const sourceFile = `solution.${extension}`;
-  const hostSourcePath = path.join(tmpDir, sourceFile);
-  fs.writeFileSync(hostSourcePath, code);
+  const image = DOCKER_IMAGE_BY_LANGUAGE[session.language];
+  if (!image) {
+    return {
+      exitCode: -1,
+      output: "",
+      error: `Unsupported language: ${session.language}`,
+      timedOut: false,
+      durationMs: 0,
+    };
+  }
+  const containerName = `leetcode-exec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  try {
-    // Build the command that runs inside the container
-    let containerCmd: string;
-    if (language === "cpp") {
-      // Compile and run in one step inside the container
-      containerCmd = `cp /code/${sourceFile} /tmp/${sourceFile} && g++ -std=c++17 -o /tmp/solution /tmp/${sourceFile} && /tmp/solution`;
-    } else if (language === "javascript") {
-      containerCmd = `node /code/${sourceFile}`;
-    } else if (language === "python") {
-      containerCmd = `python3 /code/${sourceFile}`;
-    } else {
-      return {
-        exitCode: -1,
-        output: "",
-        error: `Unsupported language: ${language}`,
-        timedOut: false,
-        durationMs: 0,
-      };
-    }
-
-    const containerName = `leetcode-exec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    const dockerArgs = [
+  let dockerArgs: string[];
+  if (session.language === "cpp" && session.compiledBinaryPath) {
+    dockerArgs = [
       "run",
       "-i",
       "--rm",
       "--name", containerName,
-      // --- Security Controls ---
       "--network=none",
       "--memory", DOCKER_MEMORY,
       "--cpus", DOCKER_CPUS,
       "--pids-limit", DOCKER_PIDS_LIMIT,
       "--read-only",
-      "--tmpfs", `/tmp:size=${DOCKER_TMPFS_SIZE},exec`,
       "--security-opt=no-new-privileges",
-      // Mount the code file read-only
-      "-v", `${hostSourcePath}:/code/${sourceFile}:ro`,
-      // Use the sandbox image
+      "-v", `${session.compiledBinaryPath}:/bin/solution:ro`,
       image,
-      // Execute the command
-      "sh", "-c", containerCmd,
+      "/bin/solution",
     ];
-
-    const result = await runProcess("docker", dockerArgs, input, timeoutMs);
-
-    // If docker timed out, make sure the container is killed and cleaned up.
-    if (result.timedOut) {
-      try {
-        await runProcess("docker", ["rm", "-f", containerName], "", 3000);
-      } catch (_killErr) {}
-    }
-
-    return result;
-  } finally {
-    // Clean up temp files on the host
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch (_cleanupErr) {
-      // Best-effort cleanup
-    }
+  } else if (session.language === "python" || session.language === "javascript") {
+    const hostSourcePath = path.join(session.tmpDir, session.sourceFile);
+    const execCmd = session.language === "python" ? ["python3", `/code/${session.sourceFile}`] : ["node", `/code/${session.sourceFile}`];
+    dockerArgs = [
+      "run",
+      "-i",
+      "--rm",
+      "--name", containerName,
+      "--network=none",
+      "--memory", DOCKER_MEMORY,
+      "--cpus", DOCKER_CPUS,
+      "--pids-limit", DOCKER_PIDS_LIMIT,
+      "--read-only",
+      "--security-opt=no-new-privileges",
+      "-v", `${hostSourcePath}:/code/${session.sourceFile}:ro`,
+      image,
+      ...execCmd,
+    ];
+  } else {
+    return {
+      exitCode: -1,
+      output: "",
+      error: `Unsupported language: ${session.language}`,
+      timedOut: false,
+      durationMs: 0,
+    };
   }
+
+  const result = await runProcess("docker", dockerArgs, input, timeoutMs);
+
+  if (result.timedOut) {
+    try {
+      await runProcess("docker", ["rm", "-f", containerName], "", 3000);
+    } catch {}
+  }
+
+  return result;
+}
+
+function cleanupSession(session: ExecutionSession) {
+  try {
+    fs.rmSync(session.tmpDir, { recursive: true, force: true });
+  } catch {}
 }
 
 function normalize(s: string): string {
@@ -433,90 +519,116 @@ async function handleRunRequest(data: {
       return;
     }
 
-    let allPassed = true;
-    let anyTimedOut = false;
-    let anyRuntimeError = false;
-    let maxDurationMs = 0;
-    const caseResults: {
-      input: string;
-      expectedOutput: string;
-      actualOutput: string;
-      error: string;
-      passed: boolean;
-      timedOut: boolean;
-      durationMs: number;
-    }[] = [];
+    // Two-Phase Compilation & Execution
+    const session = await prepareExecution(language, code);
 
-    for (const testCase of casesToRun) {
-      const { output, error, exitCode, timedOut, durationMs } = await runInDocker(
-        language,
-        code,
-        testCase.input,
-        TLE_MS,
+    try {
+      if (session.compileError) {
+        await resultClient.lPush(
+          `run_results:${runId}`,
+          JSON.stringify({
+            runId,
+            status: "CompileError",
+            durationMs: 0,
+            executionTimeMs: 0,
+            output: "",
+            error: session.compileError,
+            cases: [],
+          }),
+        );
+        await resultClient.expire(`run_results:${runId}`, 60);
+        return;
+      }
+
+      let allPassed = true;
+      let anyTimedOut = false;
+      let anyOOM = false;
+      let anyRuntimeError = false;
+      let maxDurationMs = 0;
+      const caseResults: {
+        input: string;
+        expectedOutput: string;
+        actualOutput: string;
+        error: string;
+        passed: boolean;
+        timedOut: boolean;
+        durationMs: number;
+      }[] = [];
+
+      for (const testCase of casesToRun) {
+        const { output, error, exitCode, timedOut, durationMs } = await runTestInSession(
+          session,
+          testCase.input,
+          TLE_MS,
+        );
+
+        if (durationMs > maxDurationMs) {
+          maxDurationMs = durationMs;
+        }
+
+        const isOOM = exitCode === 137;
+        const hasRuntimeError =
+          !timedOut &&
+          !isOOM &&
+          (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
+
+        if (isOOM) anyOOM = true;
+        if (hasRuntimeError) anyRuntimeError = true;
+        if (timedOut) anyTimedOut = true;
+
+        const passed =
+          !timedOut &&
+          !isOOM &&
+          !hasRuntimeError &&
+          (testCase.expectedOutput ? normalize(output) === normalize(testCase.expectedOutput) : true);
+
+        if (!passed) {
+          allPassed = false;
+        }
+
+        caseResults.push({
+          input: testCase.input,
+          expectedOutput: testCase.expectedOutput,
+          actualOutput: output.trim(),
+          error: isOOM ? "Memory Limit Exceeded (128MB)" : error.trim(),
+          passed,
+          timedOut,
+          durationMs,
+        });
+      }
+
+      const overallStatus = anyTimedOut
+        ? "TLE"
+        : anyOOM
+          ? "MLE"
+          : anyRuntimeError
+            ? "RuntimeError"
+            : allPassed
+              ? "Accepted"
+              : "WrongAnswer";
+
+      const firstError = caseResults.find((c) => c.error)?.error || "";
+      const combinedOutput = caseResults
+        .map((c, i) => (casesToRun.length > 1 ? `Case ${i + 1}:\n${c.actualOutput || c.error}` : (c.actualOutput || c.error)))
+        .filter(Boolean)
+        .join("\n\n");
+
+      await resultClient.lPush(
+        `run_results:${runId}`,
+        JSON.stringify({
+          runId,
+          status: overallStatus,
+          durationMs: maxDurationMs,
+          executionTimeMs: maxDurationMs,
+          output: combinedOutput || (caseResults[0]?.actualOutput ?? ""),
+          error: firstError,
+          cases: caseResults,
+        }),
       );
-
-      if (durationMs > maxDurationMs) {
-        maxDurationMs = durationMs;
-      }
-
-      const hasRuntimeError =
-        !timedOut &&
-        (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
-
-      if (hasRuntimeError) {
-        anyRuntimeError = true;
-      }
-      if (timedOut) {
-        anyTimedOut = true;
-      }
-
-      const passed =
-        !timedOut &&
-        !hasRuntimeError &&
-        (testCase.expectedOutput ? normalize(output) === normalize(testCase.expectedOutput) : true);
-
-      if (!passed) {
-        allPassed = false;
-      }
-
-      caseResults.push({
-        input: testCase.input,
-        expectedOutput: testCase.expectedOutput,
-        actualOutput: output.trim(),
-        error: error.trim(),
-        passed,
-        timedOut,
-        durationMs,
-      });
+      await resultClient.expire(`run_results:${runId}`, 60);
+    } finally {
+      cleanupSession(session);
     }
-
-    const overallStatus = anyTimedOut
-      ? "TLE"
-      : anyRuntimeError
-        ? "Failure"
-        : allPassed
-          ? "Accepted"
-          : "WrongAnswer";
-
-    const firstError = caseResults.find((c) => c.error)?.error || "";
-    const combinedOutput = caseResults
-      .map((c, i) => (casesToRun.length > 1 ? `Case ${i + 1}:\n${c.actualOutput || c.error}` : (c.actualOutput || c.error)))
-      .filter(Boolean)
-      .join("\n\n");
-
-    await resultClient.lPush(
-      `run_results:${runId}`,
-      JSON.stringify({
-        runId,
-        status: overallStatus,
-        durationMs: maxDurationMs,
-        executionTimeMs: maxDurationMs,
-        output: combinedOutput || (caseResults[0]?.actualOutput ?? ""),
-        error: firstError,
-        cases: caseResults,
-      }),
-    );
-    await resultClient.expire(`run_results:${runId}`, 60);
   } catch (err: any) {
     console.error(`[Worker] Error running code for runId ${runId}:`, err);
     await resultClient.lPush(
@@ -571,93 +683,119 @@ async function handleSubmission(parsedResponse: any) {
       return;
     }
 
-    let passedCount = 0;
-    let anyTimedOut = false;
-    let anyRuntimeError = false;
-    let lastOutput = "";
-    let firstFailingOutput = "";
-    const resultRows: {
-      testCaseId: string;
-      passed: boolean;
-      actualOutput: string;
-      timedOut: boolean;
-    }[] = [];
+    // Two-Phase Compilation & Execution
+    const session = await prepareExecution(language, code);
 
-    for (const testCase of testCases) {
-      const { output, error, exitCode, timedOut } = await runInDocker(
-        language,
-        code,
-        testCase.input,
-        TLE_MS,
-      );
-
-      const hasRuntimeError =
-        !timedOut &&
-        (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
-
-      if (hasRuntimeError) {
-        anyRuntimeError = true;
+    try {
+      if (session.compileError) {
+        console.log(`Submission ${submissionId} failed compilation: ${session.compileError}`);
+        await prisma.submission.update({
+          where: { id: submissionId },
+          data: {
+            status: "CompileError",
+            output: session.compileError,
+            passedCount: 0,
+            totalCount: testCases.length,
+          },
+        });
+        return;
       }
 
-      const passed =
-        !timedOut &&
-        !hasRuntimeError &&
-        normalize(output) === normalize(testCase.expectedOutput);
+      let passedCount = 0;
+      let anyTimedOut = false;
+      let anyOOM = false;
+      let anyRuntimeError = false;
+      let lastOutput = "";
+      let firstFailingOutput = "";
+      const resultRows: {
+        testCaseId: string;
+        passed: boolean;
+        actualOutput: string;
+        timedOut: boolean;
+      }[] = [];
 
-      if (passed) passedCount++;
-      if (timedOut) anyTimedOut = true;
+      for (const testCase of testCases) {
+        const { output, error, exitCode, timedOut } = await runTestInSession(
+          session,
+          testCase.input,
+          TLE_MS,
+        );
 
-      const displayOutput = error.trim()
-        ? output.trim()
-          ? `${output.trim()}\n[Stderr]: ${error.trim()}`
-          : error.trim()
-        : output.trim();
+        const isOOM = exitCode === 137;
+        const hasRuntimeError =
+          !timedOut &&
+          !isOOM &&
+          (exitCode !== 0 || (error.trim().length > 0 && output.trim().length === 0));
 
-      if (!passed && !firstFailingOutput) {
-        firstFailingOutput = displayOutput;
+        if (isOOM) anyOOM = true;
+        if (hasRuntimeError) anyRuntimeError = true;
+        if (timedOut) anyTimedOut = true;
+
+        const passed =
+          !timedOut &&
+          !isOOM &&
+          !hasRuntimeError &&
+          normalize(output) === normalize(testCase.expectedOutput);
+
+        if (passed) passedCount++;
+
+        const errorNote = isOOM ? "Memory Limit Exceeded (128MB)" : error.trim();
+        const displayOutput = errorNote
+          ? output.trim()
+            ? `${output.trim()}\n[Stderr]: ${errorNote}`
+            : errorNote
+          : output.trim();
+
+        if (!passed && !firstFailingOutput) {
+          firstFailingOutput = displayOutput;
+        }
+        lastOutput = displayOutput;
+
+        resultRows.push({
+          testCaseId: testCase.id,
+          passed,
+          actualOutput: displayOutput,
+          timedOut,
+        });
       }
-      lastOutput = displayOutput;
 
-      resultRows.push({
-        testCaseId: testCase.id,
-        passed,
-        actualOutput: displayOutput,
-        timedOut,
-      });
+      const status = anyTimedOut
+        ? "TLE"
+        : anyOOM
+          ? "MLE"
+          : anyRuntimeError && passedCount === 0
+            ? "RuntimeError"
+            : passedCount === testCases.length
+              ? "Accepted"
+              : "WrongAnswer";
+
+      console.log(`${passedCount}/${testCases.length} passed, status: ${status}`);
+
+      const finalOutput = passedCount === testCases.length ? lastOutput : (firstFailingOutput || lastOutput);
+
+      await prisma.$transaction([
+        prisma.submission.update({
+          where: { id: submissionId },
+          data: {
+            status,
+            output: finalOutput,
+            passedCount,
+            totalCount: testCases.length,
+          },
+        }),
+        prisma.submissionResult.createMany({
+          data: resultRows.map((r) => ({
+            submissionId,
+            testCaseId: r.testCaseId,
+            passed: r.passed,
+            actualOutput: r.actualOutput,
+            timedOut: r.timedOut,
+          })),
+        }),
+      ]);
+    } finally {
+      cleanupSession(session);
     }
-
-    const status = anyTimedOut
-      ? "TLE"
-      : anyRuntimeError && passedCount === 0
-        ? "Failure"
-        : passedCount === testCases.length
-          ? "Success"
-          : "WrongAnswer";
-
-    console.log(`${passedCount}/${testCases.length} passed, status: ${status}`);
-
-    const finalOutput = passedCount === testCases.length ? lastOutput : (firstFailingOutput || lastOutput);
-
-    await prisma.$transaction([
-      prisma.submission.update({
-        where: { id: submissionId },
-        data: {
-          status,
-          output: finalOutput,
-          passedCount,
-          totalCount: testCases.length,
-        },
-      }),
-      prisma.submissionResult.createMany({
-        data: resultRows.map((r) => ({
-          submissionId,
-          testCaseId: r.testCaseId,
-          passed: r.passed,
-          actualOutput: r.actualOutput,
-          timedOut: r.timedOut,
-        })),
-      }),
-    ]);
   } catch (submissionErr: any) {
     console.error(`Error processing submission ${submissionId}:`, submissionErr);
     try {
