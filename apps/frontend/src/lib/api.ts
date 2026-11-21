@@ -1,4 +1,13 @@
-import type { Question, Submission, RunResultResponse, SubmissionStreamEvent } from "./types";
+import type {
+  Question,
+  QuestionListResult,
+  Submission,
+  SubmissionDetail,
+  SubmissionListResult,
+  RunResultResponse,
+  SubmissionStreamEvent,
+  UserStats,
+} from "./types";
 
 export function getApiBaseUrl(): string {
   // 1. Explicit override via build-time or runtime environment variable
@@ -31,7 +40,6 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-
 
 export function getSavedUsername(): string | null {
   return localStorage.getItem("username");
@@ -92,8 +100,10 @@ export async function fetchCurrentUser(): Promise<{ userId: string; username: st
       return data.user;
     }
     return null;
-  } catch {
-    clearAuthSession();
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) {
+      clearAuthSession();
+    }
     return null;
   }
 }
@@ -118,8 +128,8 @@ async function apiFetch(path: string, init: RequestInit = {}, requireAuth = fals
       headers,
       credentials: "include",
     });
-  } catch (err) {
-    throw new ApiError("Couldn't reach the server. Is the backend running?", 0);
+  } catch {
+    throw new ApiError("Couldn't reach the server. Check your connection and try again.", 0);
   }
 
   let data: any = null;
@@ -169,13 +179,14 @@ export async function signOut(): Promise<void> {
   }
 }
 
+// ── Questions ────────────────────────────────────────────────────────────
 
 export async function fetchQuestions(params?: {
   page?: number;
   limit?: number;
   difficulty?: string;
   search?: string;
-}): Promise<Question[]> {
+}): Promise<QuestionListResult> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", params.page.toString());
   if (params?.limit) searchParams.set("limit", params.limit.toString());
@@ -185,7 +196,17 @@ export async function fetchQuestions(params?: {
   const query = searchParams.toString();
   const path = query ? `/questions?${query}` : "/questions";
   const data = await apiFetch(path);
-  return data?.questions ?? [];
+
+  return {
+    questions: data?.questions ?? [],
+    pagination: data?.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 },
+  };
+}
+
+/** Load the full problem catalogue (up to the API maximum of 100). */
+export async function fetchAllQuestions(): Promise<Question[]> {
+  const { questions } = await fetchQuestions({ limit: 100 });
+  return questions;
 }
 
 export async function fetchQuestionById(id: string): Promise<Question | null> {
@@ -205,17 +226,30 @@ export async function fetchUserSubmissions(params?: {
   limit?: number;
   questionId?: string;
   status?: string;
-}): Promise<Submission[]> {
+  language?: string;
+  search?: string;
+}): Promise<SubmissionListResult> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", params.page.toString());
   if (params?.limit) searchParams.set("limit", params.limit.toString());
   if (params?.questionId) searchParams.set("questionId", params.questionId);
   if (params?.status && params.status !== "All") searchParams.set("status", params.status);
+  if (params?.language && params.language !== "All") searchParams.set("language", params.language);
+  if (params?.search) searchParams.set("search", params.search);
 
   const query = searchParams.toString();
   const path = query ? `/submission/submissions?${query}` : "/submission/submissions";
   const data = await apiFetch(path, {}, true);
-  return data?.submissions ?? [];
+
+  return {
+    submissions: data?.submissions ?? [],
+    pagination: data?.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 },
+  };
+}
+
+export async function fetchSubmissionStats(): Promise<UserStats> {
+  const data = await apiFetch("/submission/stats", {}, true);
+  return data?.stats as UserStats;
 }
 
 export async function runCodeAPI(payload: {
@@ -241,7 +275,7 @@ export async function submitCodeAPI(payload: {
   return data.submissionId;
 }
 
-export async function fetchSubmissionById(id: string): Promise<Submission | null> {
+export async function fetchSubmissionById(id: string): Promise<SubmissionDetail | null> {
   try {
     const data = await apiFetch(`/submission/${id}`, {}, true);
     return data?.submission ?? null;
@@ -259,7 +293,7 @@ export async function fetchSubmissionById(id: string): Promise<Submission | null
 export async function pollForSubmissionResult(
   submissionId: string,
   { intervalMs = 1500, timeoutMs = 30000 }: { intervalMs?: number; timeoutMs?: number } = {},
-): Promise<Submission | null> {
+): Promise<SubmissionDetail | null> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {

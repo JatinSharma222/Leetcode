@@ -16,6 +16,28 @@ export const getSubmissionById = async (req: Request, res: Response) => {
 
     const submission = await prisma.submission.findUnique({
       where: { id },
+      include: {
+        question: {
+          select: {
+            id: true,
+            title: true,
+            difficulty: true,
+          },
+        },
+        results: {
+          include: {
+            testCase: {
+              select: {
+                id: true,
+                isSample: true,
+                input: true,
+                expectedOutput: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
 
     if (!submission) {
@@ -26,12 +48,186 @@ export const getSubmissionById = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    res.status(200).json({ submission });
+    // Only expose sample test case inputs and expected outputs.
+    const safeSubmission = {
+      ...submission,
+      results: submission.results.map((result) => ({
+        id: result.id,
+        testCaseId: result.testCaseId,
+        passed: result.passed,
+        timedOut: result.timedOut,
+        actualOutput: result.testCase.isSample ? result.actualOutput : null,
+        testCase: result.testCase.isSample
+          ? {
+              id: result.testCase.id,
+              isSample: true,
+              input: result.testCase.input,
+              expectedOutput: result.testCase.expectedOutput,
+            }
+          : {
+              id: result.testCase.id,
+              isSample: false,
+            },
+      })),
+    };
+
+    res.status(200).json({ submission: safeSubmission });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+const ACCEPTED_STATUSES = new Set(["Success", "Accepted"]);
+
+function toDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftDate(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+export const getSubmissionStats = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const [submissions, questions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { userId },
+        select: {
+          questionId: true,
+          status: true,
+          language: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.question.findMany({
+        select: {
+          id: true,
+          difficulty: true,
+        },
+      }),
+    ]);
+
+    const acceptedSubmissions = submissions.filter((submission) =>
+      ACCEPTED_STATUSES.has(submission.status),
+    );
+    const solvedQuestionIds = [...new Set(acceptedSubmissions.map((submission) => submission.questionId))];
+    const attemptedQuestionIds = [...new Set(submissions.map((submission) => submission.questionId))];
+
+    const difficultyTotals: Record<"Easy" | "Medium" | "Hard", number> = {
+      Easy: 0,
+      Medium: 0,
+      Hard: 0,
+    };
+    const questionDifficulty = new Map<string, "Easy" | "Medium" | "Hard">();
+
+    for (const question of questions) {
+      const difficulty = question.difficulty as "Easy" | "Medium" | "Hard";
+      questionDifficulty.set(question.id, difficulty);
+      difficultyTotals[difficulty] += 1;
+    }
+
+    const difficultySolved: Record<"Easy" | "Medium" | "Hard", number> = {
+      Easy: 0,
+      Medium: 0,
+      Hard: 0,
+    };
+
+    for (const questionId of solvedQuestionIds) {
+      const difficulty = questionDifficulty.get(questionId);
+      if (difficulty) {
+        difficultySolved[difficulty] += 1;
+      }
+    }
+
+    const activity: Record<string, number> = {};
+    const languageCounts: Record<string, number> = {};
+    for (const submission of submissions) {
+      const key = toDateKey(submission.createdAt);
+      activity[key] = (activity[key] ?? 0) + 1;
+      languageCounts[submission.language] = (languageCounts[submission.language] ?? 0) + 1;
+    }
+
+    const activeDays = Object.keys(activity).length;
+    const sortedDays = Object.keys(activity).sort();
+
+    let longestStreak = 0;
+    let runningStreak = 0;
+    let previousDate: Date | null = null;
+    for (const key of sortedDays) {
+      const currentDate = new Date(`${key}T00:00:00.000Z`);
+      if (previousDate && toDateKey(shiftDate(previousDate, 1)) === key) {
+        runningStreak += 1;
+      } else {
+        runningStreak = 1;
+      }
+      longestStreak = Math.max(longestStreak, runningStreak);
+      previousDate = currentDate;
+    }
+
+    const today = new Date();
+    const todayKey = toDateKey(today);
+    let streakCursor = activity[todayKey] ? today : shiftDate(today, -1);
+    let currentStreak = 0;
+    while (activity[toDateKey(streakCursor)]) {
+      currentStreak += 1;
+      streakCursor = shiftDate(streakCursor, -1);
+    }
+
+    const recent7Days = Array.from({ length: 7 }, (_, index) => {
+      const date = shiftDate(today, index - 6);
+      const key = toDateKey(date);
+      return { date: key, count: activity[key] ?? 0 };
+    });
+
+    const sevenDaysAgo = shiftDate(today, -7);
+    const recentSubmissions = submissions.filter(
+      (submission) => submission.createdAt >= sevenDaysAgo,
+    ).length;
+
+    const acceptanceRate =
+      submissions.length > 0
+        ? Math.round((acceptedSubmissions.length / submissions.length) * 1000) / 10
+        : 0;
+
+    res.status(200).json({
+      stats: {
+        totalSubmissions: submissions.length,
+        acceptedSubmissions: acceptedSubmissions.length,
+        acceptanceRate,
+        solvedQuestionIds,
+        attemptedQuestionIds,
+        solvedCount: solvedQuestionIds.length,
+        attemptedCount: attemptedQuestionIds.length,
+        totalQuestions: questions.length,
+        difficulty: {
+          Easy: { solved: difficultySolved.Easy, total: difficultyTotals.Easy },
+          Medium: { solved: difficultySolved.Medium, total: difficultyTotals.Medium },
+          Hard: { solved: difficultySolved.Hard, total: difficultyTotals.Hard },
+        },
+        activity,
+        activeDays,
+        currentStreak,
+        longestStreak,
+        recent7Days,
+        languageCounts,
+        recentSubmissions,
+      },
+    });
+  } catch (err) {
+    console.error("getSubmissionStats error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 
 /**
  * Server-Sent Events (SSE) endpoint providing live testcase-by-testcase
@@ -70,9 +266,22 @@ export const streamSubmissionProgress = async (req: Request, res: Response) => {
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
 
-    // If already finalized, push final state and close
+    // If already finalized, push the full final state and close.
     if (submission.status !== "Processing") {
-      res.write(`data: ${JSON.stringify({ type: "completed", submission })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          type: "completed",
+          status: submission.status,
+          passedCount: submission.passedCount,
+          totalCount: submission.totalCount,
+          output: submission.output,
+          cases: submission.results.map((result) => ({
+            passed: result.passed,
+            timedOut: result.timedOut,
+          })),
+          submission,
+        })}\n\n`,
+      );
       return res.end();
     }
 
@@ -120,10 +329,22 @@ export const getSubmissions = async (req: Request, res: Response) => {
 
     const questionId = typeof req.query.questionId === "string" ? req.query.questionId : undefined;
     const status = typeof req.query.status === "string" ? (req.query.status as any) : undefined;
+    const language = typeof req.query.language === "string" ? req.query.language : undefined;
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
 
     const where: any = { userId };
     if (questionId) where.questionId = questionId;
-    if (status) where.status = status;
+    if (status === "Accepted") {
+      where.status = { in: ["Accepted", "Success"] };
+    } else if (status === "RuntimeError") {
+      where.status = { in: ["RuntimeError", "Failure"] };
+    } else if (status) {
+      where.status = status;
+    }
+    if (language) where.language = language;
+    if (search) {
+      where.question = { title: { contains: search, mode: "insensitive" } };
+    }
 
     const [submissions, total] = await Promise.all([
       prisma.submission.findMany({

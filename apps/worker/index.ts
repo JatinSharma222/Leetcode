@@ -827,6 +827,10 @@ async function handleSubmission(parsedResponse: any) {
           passedCount,
           totalCount: testCases.length,
           output: finalOutput,
+          cases: resultRows.map((result) => ({
+            passed: result.passed,
+            timedOut: result.timedOut,
+          })),
         }),
       );
     } finally {
