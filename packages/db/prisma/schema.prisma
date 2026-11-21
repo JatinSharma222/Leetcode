@@ -14,13 +14,24 @@ model User {
   submissions Submission[]
 }
 
+enum Difficulty {
+  Easy
+  Medium
+  Hard
+}
+
 model Question {
-  id          String       @id
-  title       String
-  description String
+  id               String       @id
+  title            String
+  description      String
+  difficulty       Difficulty   @default(Easy)
+  category         String?
+  starterTemplates Json?
 
   testCases   TestCase[]
   submissions Submission[]
+
+  createdAt   DateTime     @default(now())
 }
 
 model TestCase {
@@ -39,6 +50,8 @@ model TestCase {
   results SubmissionResult[]
 
   createdAt DateTime @default(now())
+
+  @@index([questionId, order])
 }
 
 model Submission {
@@ -61,6 +74,10 @@ model Submission {
   results SubmissionResult[]
 
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([questionId])
+  @@index([status])
 }
 
 model SubmissionResult {
@@ -77,12 +94,18 @@ model SubmissionResult {
   timedOut     Boolean @default(false)
 
   createdAt DateTime @default(now())
+
+  @@index([submissionId])
 }
 
 enum SubmissionStatus {
   Processing
   Success
+  Accepted
   WrongAnswer
   Failure
   TLE
+  MLE
+  CompileError
+  RuntimeError
 }

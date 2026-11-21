@@ -43,18 +43,49 @@ export const getSubmissions = async (req: Request, res: Response) => {
       });
     }
 
-    const submissions = await prisma.submission.findMany({
-      where: { userId },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const questionId = typeof req.query.questionId === "string" ? req.query.questionId : undefined;
+    const status = typeof req.query.status === "string" ? (req.query.status as any) : undefined;
+
+    const where: any = { userId };
+    if (questionId) where.questionId = questionId;
+    if (status) where.status = status;
+
+    const [submissions, total] = await Promise.all([
+      prisma.submission.findMany({
+        where,
+        include: {
+          question: {
+            select: {
+              id: true,
+              title: true,
+              difficulty: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.submission.count({ where }),
+    ]);
 
     res.status(200).json({
       submissions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (err) {
-    console.error(err);
+    console.error("getSubmissions error:", err);
     res.status(500).json({
       message: "Internal server error",
     });

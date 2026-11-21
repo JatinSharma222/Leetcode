@@ -1,25 +1,58 @@
 import type { Request, Response } from "express";
 import { prisma } from "@repo/db";
 
-export const getQuestions = async (_req: Request, res: Response) => {
+export const getQuestions = async (req: Request, res: Response) => {
   try {
-    const questions = await prisma.question.findMany({
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        _count: {
-          select: {
-            submissions: true,
-            testCases: true,
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const difficulty = req.query.difficulty as "Easy" | "Medium" | "Hard" | undefined;
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
+
+    const where: any = {};
+    if (difficulty && ["Easy", "Medium", "Hard"].includes(difficulty)) {
+      where.difficulty = difficulty;
+    }
+    if (search) {
+      where.title = { contains: search, mode: "insensitive" };
+    }
+
+    const [questions, total] = await Promise.all([
+      prisma.question.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          difficulty: true,
+          category: true,
+          createdAt: true,
+          _count: {
+            select: {
+              submissions: true,
+              testCases: true,
+            },
           },
         },
+        orderBy: { id: "asc" },
+        skip,
+        take: limit,
+      }),
+      prisma.question.count({ where }),
+    ]);
+
+    res.status(200).json({
+      questions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
-
-    res.status(200).json({ questions });
   } catch (err) {
-    console.error(err);
+    console.error("getQuestions error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
