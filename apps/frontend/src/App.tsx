@@ -8,6 +8,7 @@ import Auth from "./screens/Auth";
 import Dashboard from "./screens/Dashboard";
 import Editor from "./screens/Editor";
 import Submissions from "./screens/Submissions";
+import { Toaster } from "./components/ui/toaster";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -89,6 +90,7 @@ export function App() {
         {/* Catch-all: redirect unknown routes to dashboard */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   </AuthProvider>
 );
