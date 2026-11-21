@@ -22,7 +22,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import CodeEditor from "@/components/ui/CodeEditor";
-import ConsolePanel, { type SubmissionResultView } from "@/components/ui/ConsolePanel";
+import ConsolePanel, { type SubmissionResultView, type LiveEvaluationProgress } from "@/components/ui/ConsolePanel";
 import type { Question, Submission, RunResultResponse } from "@/lib/types";
 import { getCodeTemplate } from "@/lib/codeTemplates";
 import { getProblemMetadata } from "@/lib/problemMeta";
@@ -35,6 +35,7 @@ import {
   pollForSubmissionResult,
   runCodeAPI,
   submitCodeAPI,
+  subscribeToSubmissionStream,
   toggleBookmarkedProblem,
 } from "@/lib/api";
 
@@ -84,6 +85,7 @@ export default function Editor() {
 
   // Submit Code state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [liveProgress, setLiveProgress] = useState<LiveEvaluationProgress | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResultView | null>(null);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -232,10 +234,11 @@ export default function Editor() {
     }
   };
 
-  // Submit Code
+  // Submit Code with Server-Sent Events (SSE) live streaming
   const handleSubmitCode = async () => {
     if (!question || isSubmitting || isRunning) return;
     setIsSubmitting(true);
+    setLiveProgress(null);
     setSubmissionResult(null);
     setSubmitError(null);
     setPollTimedOut(false);
@@ -243,26 +246,63 @@ export default function Editor() {
 
     try {
       const submissionId = await submitCodeAPI({ questionId: question.id, code, language });
-      const result = await pollForSubmissionResult(submissionId);
-      if (result) {
-        setSubmissionResult({
-          status: result.status,
-          output: result.output,
-          passedCount: result.passedCount,
-          totalCount: result.totalCount,
-        });
-        setPastSubmissions((prev) => [result, ...prev]);
-      } else {
-        setPollTimedOut(true);
-      }
+
+      // Subscribe to real-time evaluation updates streamed via Redis Pub/Sub
+      subscribeToSubmissionStream(
+        submissionId,
+        (event) => {
+          if (event.type === "compiling") {
+            setLiveProgress({ phase: "compiling" });
+          } else if (event.type === "testcase") {
+            setLiveProgress({
+              phase: "testcase",
+              current: event.current,
+              total: event.total,
+              passed: event.passed,
+            });
+          } else if (event.type === "completed") {
+            setLiveProgress(null);
+            setIsSubmitting(false);
+            setSubmissionResult({
+              status: event.status,
+              output: event.output,
+              passedCount: event.passedCount ?? 0,
+              totalCount: event.totalCount ?? (question.testCases?.length || 0),
+            });
+            fetchUserSubmissions()
+              .then((subs) => setPastSubmissions(subs.filter((s) => s.questionId === question.id)))
+              .catch(() => {});
+          }
+        },
+        async () => {
+          // Fallback to polling if SSE encounters a network failure
+          try {
+            const result = await pollForSubmissionResult(submissionId);
+            if (result) {
+              setSubmissionResult({
+                status: result.status,
+                output: result.output,
+                passedCount: result.passedCount,
+                totalCount: result.totalCount,
+              });
+              setPastSubmissions((prev) => [result, ...prev]);
+            } else {
+              setPollTimedOut(true);
+            }
+          } finally {
+            setIsSubmitting(false);
+            setLiveProgress(null);
+          }
+        },
+      );
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         navigate("/auth");
         return;
       }
       setSubmitError(err instanceof Error ? err.message : "Submission failed.");
-    } finally {
       setIsSubmitting(false);
+      setLiveProgress(null);
     }
   };
 
@@ -285,9 +325,12 @@ export default function Editor() {
   const currentIndex = allQuestions.findIndex((q) => q.id === id);
   const prevQuestion = currentIndex > 0 ? allQuestions[currentIndex - 1] : null;
   const nextQuestion = currentIndex >= 0 && currentIndex < allQuestions.length - 1 ? allQuestions[currentIndex + 1] : null;
-  const diff = question?.id ? DIFFICULTY_MAP[question.id] || { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" } : null;
+  const diffLabel = question?.difficulty || (question?.id ? DIFFICULTY_MAP[question.id]?.label : "Easy");
+  const diffColor = diffLabel === "Hard" ? "text-status-error" : diffLabel === "Medium" ? "text-status-warning" : "text-status-accepted";
+  const diffBg = diffLabel === "Hard" ? "bg-status-error/10 border-status-error/20" : diffLabel === "Medium" ? "bg-status-warning/10 border-status-warning/20" : "bg-status-accepted/10 border-status-accepted/20";
+  const diff = { label: diffLabel, color: diffColor, bg: diffBg };
   const metadata = getProblemMetadata(question?.id);
-  const isSolved = pastSubmissions.some((s) => s.status === "Success");
+  const isSolved = pastSubmissions.some((s) => s.status === "Success" || (s.status as string) === "Accepted");
   const hasAttempted = pastSubmissions.length > 0;
 
   if (loading) {
@@ -806,6 +849,7 @@ export default function Editor() {
               runResult={runResult}
               onRun={handleRunCode}
               isSubmitting={isSubmitting}
+              liveProgress={liveProgress}
               submissionResult={submissionResult}
               onSubmit={handleSubmitCode}
               pollTimedOut={pollTimedOut}

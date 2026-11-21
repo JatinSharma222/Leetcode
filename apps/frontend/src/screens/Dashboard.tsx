@@ -93,14 +93,25 @@ export default function Dashboard() {
   };
 
   const solvedQuestionIds = useMemo(
-    () => new Set(submissions.filter((s) => s.status === "Success").map((s) => s.questionId)),
+    () =>
+      new Set(
+        submissions
+          .filter((s) => s.status === "Success" || (s.status as string) === "Accepted")
+          .map((s) => s.questionId),
+      ),
     [submissions],
   );
 
   // Breakdown counts
-  const easyQuestions = questions.filter((q) => (DIFFICULTY_MAP[q.id]?.label || "Easy") === "Easy");
-  const mediumQuestions = questions.filter((q) => DIFFICULTY_MAP[q.id]?.label === "Medium");
-  const hardQuestions = questions.filter((q) => DIFFICULTY_MAP[q.id]?.label === "Hard");
+  const easyQuestions = questions.filter(
+    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy") === "Easy",
+  );
+  const mediumQuestions = questions.filter(
+    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label) === "Medium",
+  );
+  const hardQuestions = questions.filter(
+    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label) === "Hard",
+  );
 
   const easySolved = easyQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
   const mediumSolved = mediumQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
@@ -108,7 +119,9 @@ export default function Dashboard() {
 
   const acceptanceRate = useMemo(() => {
     if (submissions.length === 0) return 0;
-    const successful = submissions.filter((s) => s.status === "Success").length;
+    const successful = submissions.filter(
+      (s) => s.status === "Success" || (s.status as string) === "Accepted",
+    ).length;
     return Math.round((successful / submissions.length) * 1000) / 10;
   }, [submissions]);
 
@@ -129,7 +142,7 @@ export default function Dashboard() {
         (TOPICS_MAP[q.id] || []).some((t) => t.toLowerCase().includes(searchQuery.trim().toLowerCase()));
       if (!matchSearch) return false;
 
-      const qDiff = DIFFICULTY_MAP[q.id]?.label || "Easy";
+      const qDiff = q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy";
       if (difficultyFilter !== "All" && qDiff !== difficultyFilter) return false;
 
       const isSolved = solvedQuestionIds.has(q.id);
@@ -206,7 +219,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2.5 flex-wrap">
             {/* Difficulty Filter */}
             <div className="flex items-center rounded-lg border border-white/5 bg-surface-elevated p-1 text-xs">
-              {(["All", "Easy", "Medium"] as const).map((diff) => (
+              {(["All", "Easy", "Medium", "Hard"] as const).map((diff) => (
                 <button
                   key={diff}
                   type="button"
@@ -288,11 +301,20 @@ export default function Dashboard() {
                 filteredQuestions.map((q, idx) => {
                   const isSolved = solvedQuestionIds.has(q.id);
                   const isBookmarked = bookmarkedIds.has(q.id);
-                  const diffObj = DIFFICULTY_MAP[q.id] || {
-                    label: "Easy",
-                    color: "text-status-accepted",
-                    bg: "bg-status-accepted/10 border-status-accepted/20",
-                  };
+                  const diffLabel = q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy";
+                  const diffColor =
+                    diffLabel === "Hard"
+                      ? "text-status-error"
+                      : diffLabel === "Medium"
+                        ? "text-status-warning"
+                        : "text-status-accepted";
+                  const diffBg =
+                    diffLabel === "Hard"
+                      ? "bg-status-error/10 border-status-error/20"
+                      : diffLabel === "Medium"
+                        ? "bg-status-warning/10 border-status-warning/20"
+                        : "bg-status-accepted/10 border-status-accepted/20";
+                  const diffObj = { label: diffLabel, color: diffColor, bg: diffBg };
                   const topicsList = TOPICS_MAP[q.id] || ["Algorithms"];
 
                   return (

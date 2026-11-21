@@ -32,9 +32,64 @@ export default function Submissions() {
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const [statusFilter, setStatusFilter] = useState<"All" | "Success" | "WrongAnswer" | "TLE">("All");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
   const [languageFilter, setLanguageFilter] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const renderVerdictBadge = (status: string) => {
+    switch (status) {
+      case "Success":
+      case "Accepted":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-accepted/10 text-status-accepted font-mono font-semibold tracking-tight text-xs">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Accepted
+          </span>
+        );
+      case "WrongAnswer":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error font-mono font-semibold tracking-tight text-xs">
+            <XCircle className="h-3.5 w-3.5" />
+            Wrong Answer
+          </span>
+        );
+      case "TLE":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-warning/10 text-status-warning font-mono font-semibold tracking-tight text-xs">
+            <Clock className="h-3.5 w-3.5" />
+            TLE
+          </span>
+        );
+      case "MLE":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-semibold tracking-tight text-xs">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            MLE
+          </span>
+        );
+      case "CompileError":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error border border-status-error/20 font-mono font-semibold tracking-tight text-xs">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Compile Error
+          </span>
+        );
+      case "RuntimeError":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error border border-status-error/20 font-mono font-semibold tracking-tight text-xs">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Runtime Error
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error font-mono font-semibold tracking-tight text-xs">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {status}
+          </span>
+        );
+    }
+  };
 
   useEffect(() => {
     async function loadSubmissions() {
@@ -62,7 +117,13 @@ export default function Submissions() {
 
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((sub) => {
-      if (statusFilter !== "All" && sub.status !== statusFilter) return false;
+      if (statusFilter !== "All") {
+        if (statusFilter === "Accepted") {
+          if (sub.status !== "Accepted" && sub.status !== "Success") return false;
+        } else if (sub.status !== statusFilter) {
+          return false;
+        }
+      }
       if (languageFilter !== "All" && sub.language.toLowerCase() !== languageFilter.toLowerCase()) return false;
       if (searchQuery.trim()) {
         const qTitle = (questionTitles[sub.questionId] || sub.questionId).toLowerCase();
@@ -93,7 +154,9 @@ export default function Submissions() {
     URL.revokeObjectURL(url);
   };
 
-  const acceptedCount = submissions.filter((s) => s.status === "Success").length;
+  const acceptedCount = submissions.filter(
+    (s) => s.status === "Success" || (s.status as string) === "Accepted",
+  ).length;
   const acceptanceRate = submissions.length > 0 ? Math.round((acceptedCount / submissions.length) * 1000) / 10 : 0;
 
   const recentCount = useMemo(() => {
@@ -102,7 +165,11 @@ export default function Submissions() {
   }, [submissions]);
 
   const solvedProblemIds = useMemo(() => {
-    return new Set(submissions.filter((s) => s.status === "Success").map((s) => s.questionId));
+    return new Set(
+      submissions
+        .filter((s) => s.status === "Success" || (s.status as string) === "Accepted")
+        .map((s) => s.questionId),
+    );
   }, [submissions]);
 
   const primaryLanguage = useMemo(() => {
@@ -303,7 +370,7 @@ export default function Submissions() {
           {/* Verdict Filters */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
             <span className="font-mono text-[10px] uppercase text-text-muted px-2 shrink-0">Verdict:</span>
-            {(["All", "Success", "WrongAnswer"] as const).map((v) => (
+            {["All", "Accepted", "WrongAnswer", "TLE", "MLE", "CompileError", "RuntimeError"].map((v) => (
               <button
                 key={v}
                 type="button"
@@ -314,7 +381,13 @@ export default function Submissions() {
                     : "text-text-secondary hover:text-text-primary hover:bg-surface-elevated"
                 }`}
               >
-                {v === "Success" ? "Accepted" : v === "WrongAnswer" ? "Wrong Answer" : "All"}
+                {v === "WrongAnswer"
+                  ? "Wrong Answer"
+                  : v === "CompileError"
+                    ? "Compile Error"
+                    : v === "RuntimeError"
+                      ? "Runtime Error"
+                      : v}
               </button>
             ))}
           </div>
@@ -381,17 +454,7 @@ export default function Submissions() {
                         >
                           {/* Verdict */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            {sub.status === "Success" ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-accepted/10 text-status-accepted font-mono font-semibold tracking-tight text-xs">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Accepted
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error font-mono font-semibold tracking-tight text-xs">
-                                <XCircle className="h-3.5 w-3.5" />
-                                {sub.status === "WrongAnswer" ? "Wrong Answer" : sub.status}
-                              </span>
-                            )}
+                            {renderVerdictBadge(sub.status)}
                           </td>
 
                           {/* Problem Title */}
@@ -463,16 +526,7 @@ export default function Submissions() {
                 <div className="p-4 bg-surface-container-high/80 flex flex-col gap-2 border-b border-white/5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono font-semibold text-xs ${
-                          selectedSub.status === "Success"
-                            ? "bg-status-accepted/15 text-status-accepted"
-                            : "bg-status-error/15 text-status-error"
-                        }`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${selectedSub.status === "Success" ? "bg-status-accepted" : "bg-status-error"}`} />
-                        <span>{selectedSub.status === "Success" ? "Accepted" : selectedSub.status === "WrongAnswer" ? "Wrong Answer" : selectedSub.status}</span>
-                      </span>
+                      {renderVerdictBadge(selectedSub.status)}
                       <span className="font-mono text-[11px] text-text-muted">
                         ID: #{selectedSub.id.slice(0, 8)}
                       </span>

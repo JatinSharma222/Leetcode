@@ -1,4 +1,22 @@
-export type SubmissionStatus = "Processing" | "Success" | "WrongAnswer" | "Failure" | "TLE";
+export type SubmissionStatus =
+  | "Processing"
+  | "Success"
+  | "Accepted"
+  | "WrongAnswer"
+  | "Failure"
+  | "TLE"
+  | "MLE"
+  | "CompileError"
+  | "RuntimeError";
+
+export type DifficultyLevel = "Easy" | "Medium" | "Hard";
+
+export interface PaginationMetadata {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 export interface TestCase {
   id: string;
@@ -13,6 +31,9 @@ export interface Question {
   id: string;
   title: string;
   description: string;
+  difficulty?: DifficultyLevel;
+  category?: string | null;
+  createdAt?: string;
   testCases?: TestCase[];
   _count?: {
     submissions: number;
@@ -31,6 +52,11 @@ export interface Submission {
   passedCount: number;
   totalCount: number;
   createdAt: string;
+  question?: {
+    id: string;
+    title: string;
+    difficulty?: DifficultyLevel;
+  };
 }
 
 export interface RunResultCase {
@@ -45,10 +71,23 @@ export interface RunResultCase {
 
 export interface RunResultResponse {
   runId: string;
-  status: "Accepted" | "WrongAnswer" | "Failure" | "TLE" | "Success";
+  status: "Accepted" | "WrongAnswer" | "Failure" | "TLE" | "MLE" | "CompileError" | "RuntimeError" | "Success";
   durationMs: number;
   output?: string;
   error?: string;
   executionTimeMs?: number;
   cases: RunResultCase[];
 }
+
+export type SubmissionStreamEvent =
+  | { type: "compiling" }
+  | { type: "testcase"; current: number; total: number; passed: boolean; durationMs: number }
+  | {
+      type: "completed";
+      status: SubmissionStatus;
+      passedCount?: number;
+      totalCount?: number;
+      output?: string;
+      error?: string;
+      submission?: Submission;
+    };

@@ -1,4 +1,4 @@
-import type { Question, Submission, RunResultResponse } from "./types";
+import type { Question, Submission, RunResultResponse, SubmissionStreamEvent } from "./types";
 
 export function getApiBaseUrl(): string {
   // 1. Explicit override via build-time or runtime environment variable
@@ -170,8 +170,21 @@ export async function signOut(): Promise<void> {
 }
 
 
-export async function fetchQuestions(): Promise<Question[]> {
-  const data = await apiFetch("/questions");
+export async function fetchQuestions(params?: {
+  page?: number;
+  limit?: number;
+  difficulty?: string;
+  search?: string;
+}): Promise<Question[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", params.page.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.difficulty && params.difficulty !== "All") searchParams.set("difficulty", params.difficulty);
+  if (params?.search) searchParams.set("search", params.search);
+
+  const query = searchParams.toString();
+  const path = query ? `/questions?${query}` : "/questions";
+  const data = await apiFetch(path);
   return data?.questions ?? [];
 }
 
@@ -187,8 +200,21 @@ export async function fetchQuestionById(id: string): Promise<Question | null> {
 
 // ── Submissions ──────────────────────────────────────────────────────────
 
-export async function fetchUserSubmissions(): Promise<Submission[]> {
-  const data = await apiFetch("/submission/submissions", {}, true);
+export async function fetchUserSubmissions(params?: {
+  page?: number;
+  limit?: number;
+  questionId?: string;
+  status?: string;
+}): Promise<Submission[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set("page", params.page.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.questionId) searchParams.set("questionId", params.questionId);
+  if (params?.status && params.status !== "All") searchParams.set("status", params.status);
+
+  const query = searchParams.toString();
+  const path = query ? `/submission/submissions?${query}` : "/submission/submissions";
+  const data = await apiFetch(path, {}, true);
   return data?.submissions ?? [];
 }
 
@@ -244,4 +270,53 @@ export async function pollForSubmissionResult(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return null;
+}
+
+/**
+ * Stream real-time evaluation updates for a submission via Server-Sent Events (SSE).
+ * Calls onEvent for compilation phase, test case progression, and final verdict.
+ * Returns an unsubscribe cleanup function.
+ */
+export function subscribeToSubmissionStream(
+  submissionId: string,
+  onEvent: (event: SubmissionStreamEvent) => void,
+  onError?: (error: any) => void,
+): () => void {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}/submission/${submissionId}/stream`;
+
+  let eventSource: EventSource | null = null;
+  let isClosed = false;
+
+  try {
+    eventSource = new EventSource(url, { withCredentials: true });
+
+    eventSource.onmessage = (e) => {
+      if (isClosed) return;
+      try {
+        const parsed: SubmissionStreamEvent = JSON.parse(e.data);
+        onEvent(parsed);
+        if (parsed.type === "completed") {
+          isClosed = true;
+          eventSource?.close();
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse SSE payload:", parseErr);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      if (isClosed) return;
+      isClosed = true;
+      eventSource?.close();
+      onError?.(err);
+    };
+  } catch (initErr) {
+    onError?.(initErr);
+  }
+
+  return () => {
+    isClosed = true;
+    eventSource?.close();
+  };
 }

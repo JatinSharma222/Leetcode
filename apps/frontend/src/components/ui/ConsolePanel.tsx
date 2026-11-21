@@ -23,12 +23,20 @@ export interface SubmissionResultView {
   totalCount?: number;
 }
 
+export interface LiveEvaluationProgress {
+  phase: "compiling" | "testcase" | "completed";
+  current?: number;
+  total?: number;
+  passed?: boolean;
+}
+
 interface ConsolePanelProps {
   testCases?: TestCase[];
   isRunning?: boolean;
   runResult?: RunResultResponse | null;
   onRun?: () => void;
   isSubmitting?: boolean;
+  liveProgress?: LiveEvaluationProgress | null;
   submissionResult?: SubmissionResultView | null;
   onSubmit?: () => void;
   pollTimedOut?: boolean;
@@ -44,6 +52,7 @@ export default function ConsolePanel({
   runResult = null,
   onRun,
   isSubmitting = false,
+  liveProgress = null,
   submissionResult = null,
   onSubmit,
   pollTimedOut = false,
@@ -122,6 +131,54 @@ export default function ConsolePanel({
   const isAccepted =
     submissionResult?.status === "Success" ||
     (submissionResult?.status as string) === "Accepted";
+
+  const getVerdictDetails = (status?: string) => {
+    switch (status) {
+      case "Success":
+      case "Accepted":
+        return {
+          label: "Accepted",
+          icon: <CheckCircle2 className="h-4 w-4" />,
+          colorClass: "bg-status-accepted/10 text-status-accepted shadow-[0_0_15px_-2px_rgba(16,185,129,0.3)]",
+        };
+      case "WrongAnswer":
+        return {
+          label: "Wrong Answer",
+          icon: <XCircle className="h-4 w-4" />,
+          colorClass: "bg-status-error/10 text-status-error shadow-[0_0_15px_-2px_rgba(244,63,94,0.3)]",
+        };
+      case "TLE":
+        return {
+          label: "Time Limit Exceeded",
+          icon: <Clock className="h-4 w-4" />,
+          colorClass: "bg-status-warning/10 text-status-warning shadow-[0_0_15px_-2px_rgba(245,158,11,0.3)]",
+        };
+      case "MLE":
+        return {
+          label: "Memory Limit Exceeded",
+          icon: <AlertTriangle className="h-4 w-4" />,
+          colorClass: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+        };
+      case "CompileError":
+        return {
+          label: "Compilation Error",
+          icon: <AlertTriangle className="h-4 w-4" />,
+          colorClass: "bg-status-error/10 text-status-error border border-status-error/20",
+        };
+      case "RuntimeError":
+        return {
+          label: "Runtime Error",
+          icon: <Zap className="h-4 w-4" />,
+          colorClass: "bg-status-error/10 text-status-error border border-status-error/20",
+        };
+      default:
+        return {
+          label: status || "Unknown",
+          icon: <AlertTriangle className="h-4 w-4" />,
+          colorClass: "bg-status-error/10 text-status-error",
+        };
+    }
+  };
 
   const isRunAccepted =
     runResult?.status === "Accepted" || runResult?.status === "Success";
@@ -514,9 +571,27 @@ export default function ConsolePanel({
           {activeTab === "subResult" && (
             <div className="space-y-3">
               {isSubmitting ? (
-                <div className="flex items-center justify-center py-8 gap-3 text-text-muted font-mono text-xs">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
-                  <span>Evaluating submission against full test suite...</span>
+                <div className="flex flex-col items-center justify-center py-6 gap-3 text-text-muted font-mono text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
+                    <span>
+                      {liveProgress?.phase === "compiling"
+                        ? "Compiling & linking in isolated sandbox..."
+                        : liveProgress?.phase === "testcase"
+                          ? `Evaluating test case ${liveProgress.current} of ${liveProgress.total}...`
+                          : "Evaluating submission against full test suite..."}
+                    </span>
+                  </div>
+                  {liveProgress?.phase === "testcase" && liveProgress.total && liveProgress.total > 0 && (
+                    <div className="w-56 h-1.5 bg-surface-base rounded-full overflow-hidden border border-white/10 mt-1">
+                      <div
+                        className="h-full bg-primary-container transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.round(((liveProgress.current || 0) / liveProgress.total) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : pollTimedOut ? (
                 <div className="p-4 bg-status-warning/10 border border-status-warning/30 rounded-lg text-xs text-status-warning">
@@ -531,16 +606,17 @@ export default function ConsolePanel({
                   {/* Verdict Header & Metric Grid */}
                   <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-base p-3 rounded-lg border border-white/5">
                     <div className="flex items-center gap-3">
-                      <span
-                        className={`px-3 py-1 rounded-full font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm ${
-                          isAccepted
-                            ? "bg-status-accepted/10 text-status-accepted shadow-[0_0_15px_-2px_rgba(16,185,129,0.3)]"
-                            : "bg-status-error/10 text-status-error shadow-[0_0_15px_-2px_rgba(244,63,94,0.3)]"
-                        }`}
-                      >
-                        {isAccepted ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                        {isAccepted ? "Accepted" : submissionResult.status === "WrongAnswer" ? "Wrong Answer" : submissionResult.status}
-                      </span>
+                      {(() => {
+                        const verdict = getVerdictDetails(submissionResult.status);
+                        return (
+                          <span
+                            className={`px-3 py-1 rounded-full font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm ${verdict.colorClass}`}
+                          >
+                            {verdict.icon}
+                            {verdict.label}
+                          </span>
+                        );
+                      })()}
                       <span className="text-xs text-text-secondary hidden sm:inline">
                         Next-gen vector judge
                       </span>
