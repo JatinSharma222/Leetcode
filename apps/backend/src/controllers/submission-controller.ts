@@ -33,6 +33,77 @@ export const getSubmissionById = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Server-Sent Events (SSE) endpoint providing live testcase-by-testcase
+ * evaluation updates streamed to the frontend via Redis Pub/Sub.
+ */
+export const streamSubmissionProgress = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ message: "Submission ID is required" });
+    }
+
+    const submission = await prisma.submission.findUnique({
+      where: { id },
+      include: {
+        results: true,
+      },
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    if (submission.userId !== userId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    // Set SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    // If already finalized, push final state and close
+    if (submission.status !== "Processing") {
+      res.write(`data: ${JSON.stringify({ type: "completed", submission })}\n\n`);
+      return res.end();
+    }
+
+    // Subscribe to live worker updates via Redis PubSub
+    const subscriber = await createDedicatedRedisClient();
+    const channel = `submission_events:${id}`;
+
+    await subscriber.subscribe(channel, (message) => {
+      res.write(`data: ${message}\n\n`);
+      try {
+        const parsed = JSON.parse(message);
+        if (parsed.type === "completed") {
+          subscriber.unsubscribe(channel).catch(() => {});
+          subscriber.disconnect().catch(() => {});
+          res.end();
+        }
+      } catch {}
+    });
+
+    req.on("close", () => {
+      subscriber.unsubscribe(channel).catch(() => {});
+      subscriber.disconnect().catch(() => {});
+    });
+  } catch (err) {
+    console.error("streamSubmissionProgress error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+};
+
 export const getSubmissions = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;

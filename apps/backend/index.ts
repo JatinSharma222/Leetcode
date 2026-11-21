@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { appRouter } from "./src/routes/index";
 import { prisma } from "@repo/db";
+import { getRedisClient } from "./src/lib/redis";
 
 export const app = express();
 // Trust first proxy hop by default for sanitized req.ip
@@ -57,7 +58,57 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Production readiness health check probe
+app.get("/health", async (_req, res) => {
+  let dbStatus = "healthy";
+  let redisStatus = "healthy";
+  let isHealthy = true;
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    dbStatus = "unhealthy";
+    isHealthy = false;
+  }
+
+  try {
+    const redis = await getRedisClient();
+    await redis.ping();
+  } catch {
+    redisStatus = "unhealthy";
+    isHealthy = false;
+  }
+
+  const statusCode = isHealthy ? 200 : 503;
+  return res.status(statusCode).json({
+    status: isHealthy ? "ok" : "degraded",
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    services: {
+      database: dbStatus,
+      redis: redisStatus,
+    },
+  });
+});
+
 app.use(appRouter);
+
+// Centralized Express error handler
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error("Unhandled API Error:", err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+      message: err.message || "Internal server error",
+    });
+  },
+);
 
 const PORT = process.env.PORT || 3001;
 

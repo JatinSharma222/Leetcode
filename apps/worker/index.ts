@@ -684,6 +684,10 @@ async function handleSubmission(parsedResponse: any) {
     }
 
     // Two-Phase Compilation & Execution
+    await resultClient.publish(
+      `submission_events:${submissionId}`,
+      JSON.stringify({ type: "compiling" }),
+    );
     const session = await prepareExecution(language, code);
 
     try {
@@ -698,6 +702,14 @@ async function handleSubmission(parsedResponse: any) {
             totalCount: testCases.length,
           },
         });
+        await resultClient.publish(
+          `submission_events:${submissionId}`,
+          JSON.stringify({
+            type: "completed",
+            status: "CompileError",
+            error: session.compileError,
+          }),
+        );
         return;
       }
 
@@ -757,6 +769,18 @@ async function handleSubmission(parsedResponse: any) {
           actualOutput: displayOutput,
           timedOut,
         });
+
+        // Broadcast test case completion over Redis PubSub for real-time SSE streaming
+        await resultClient.publish(
+          `submission_events:${submissionId}`,
+          JSON.stringify({
+            type: "testcase",
+            current: resultRows.length,
+            total: testCases.length,
+            passed,
+            durationMs: timedOut ? TLE_MS : 0,
+          }),
+        );
       }
 
       const status = anyTimedOut
@@ -793,6 +817,18 @@ async function handleSubmission(parsedResponse: any) {
           })),
         }),
       ]);
+
+      // Broadcast final completed state over Redis PubSub
+      await resultClient.publish(
+        `submission_events:${submissionId}`,
+        JSON.stringify({
+          type: "completed",
+          status,
+          passedCount,
+          totalCount: testCases.length,
+          output: finalOutput,
+        }),
+      );
     } finally {
       cleanupSession(session);
     }
