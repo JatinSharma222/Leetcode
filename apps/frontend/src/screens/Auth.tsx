@@ -1,24 +1,18 @@
-import React from "react";
 import AuthBanner from "@/components/ui/AuthBanner";
 import AuthCredentials from "@/components/ui/AuthCredentials";
 
 export default function Auth() {
   return (
-    <main className="w-full bg-surface-base min-h-screen flex flex-col justify-center font-sans">
-      <div className="relative w-full min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 overflow-hidden">
-        {/* Ambient Luminous Mesh Accents */}
-        <div className="absolute -top-32 -left-20 w-[540px] h-[540px] bg-primary-container/15 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute -bottom-36 -right-24 w-[480px] h-[480px] bg-brand-wine-deep/20 rounded-full blur-[160px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[720px] bg-surface-container-lowest/70 pointer-events-none -z-10" />
+    <main className="relative min-h-dvh overflow-hidden bg-surface-base font-sans">
+      <div className="pointer-events-none absolute -left-40 -top-40 h-[520px] w-[520px] rounded-full bg-primary-container/10 blur-[140px]" />
+      <div className="pointer-events-none absolute -bottom-48 -right-40 h-[520px] w-[520px] rounded-full bg-brand-wine-deep/15 blur-[160px]" />
 
-        {/* Main 50/50 Split Frame */}
-        <div className="relative w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch my-auto">
-          <div className="lg:col-span-6 flex flex-col">
-            <AuthBanner />
-          </div>
-          <div className="lg:col-span-6 flex flex-col justify-center">
-            <AuthCredentials />
-          </div>
+      <div className="relative mx-auto grid min-h-dvh w-full max-w-6xl grid-cols-1 items-center gap-12 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:px-8">
+        <div className="order-1">
+          <AuthCredentials />
+        </div>
+        <div className="order-2 hidden lg:block">
+          <AuthBanner />
         </div>
       </div>
     </main>

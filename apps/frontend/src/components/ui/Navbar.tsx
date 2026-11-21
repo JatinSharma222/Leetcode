@@ -1,9 +1,12 @@
-import React, { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router";
-import { LogOut, Menu, X, Code2, ListOrdered } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { Code2, ListOrdered, LogOut, Menu, X } from "lucide-react";
+
 import AtelierLogo from "./AtelierLogo";
+import { Button } from "./button";
 import { useAuth } from "@/context/AuthContext";
 import { getSavedUsername } from "@/lib/api";
+import { getInitials } from "@/lib/ui";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -11,6 +14,8 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const username = user?.username || getSavedUsername() || "Developer";
 
@@ -28,163 +33,189 @@ export default function Navbar() {
     return location.pathname === path;
   };
 
+  useEffect(() => {
+    setShowProfileMenu(false);
+    setShowMobileMenu(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!showProfileMenu && !showMobileMenu) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (showProfileMenu && !profileMenuRef.current?.contains(target)) {
+        setShowProfileMenu(false);
+      }
+      if (showMobileMenu && !mobileMenuRef.current?.contains(target)) {
+        setShowMobileMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowProfileMenu(false);
+        setShowMobileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showProfileMenu, showMobileMenu]);
+
+  const navLinkClass = (active: boolean) =>
+    `rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+      active
+        ? "bg-surface-hover text-text-primary"
+        : "text-text-secondary hover:bg-surface-hover/60 hover:text-text-primary"
+    }`;
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-[#0B0B0F]/90 backdrop-blur-md shadow-[0_1px_12px_rgba(0,0,0,0.5)]">
-      <div className="mx-auto flex h-14 max-w-[1560px] items-center justify-between gap-4 px-4 sm:px-6">
-        {/* Left: Brand Identity & Nav Tabs */}
-        <div className="flex items-center gap-6 lg:gap-8 shrink-0">
+    <header className="sticky top-0 z-50 w-full border-b border-border-hairline bg-surface-base/90 backdrop-blur-md">
+      <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="flex shrink-0 items-center gap-6">
           <Link to="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-            <AtelierLogo size={32} />
-            <span className="font-headline-sm text-base sm:text-lg font-bold tracking-tight text-text-primary">
+            <AtelierLogo size={28} />
+            <span className="font-display text-base font-semibold tracking-tight text-text-primary">
               AtelierCode
-            </span>
-            <span className="hidden sm:inline-flex items-center rounded-full bg-surface-elevated px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-text-muted border border-white/5">
-              Online Judge
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
-            <Link
-              to="/"
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                isActive("/")
-                  ? "bg-surface-hover text-text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] font-semibold"
-                  : "text-text-secondary hover:text-text-primary hover:bg-surface-hover/50"
-              }`}
-            >
+          <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+            <Link to="/" className={navLinkClass(isActive("/"))} aria-current={isActive("/") ? "page" : undefined}>
               Problems
             </Link>
-
             <Link
               to="/submissions"
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                isActive("/submissions")
-                  ? "bg-surface-hover text-text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] font-semibold"
-                  : "text-text-secondary hover:text-text-primary hover:bg-surface-hover/50"
-              }`}
+              className={navLinkClass(isActive("/submissions"))}
+              aria-current={isActive("/submissions") ? "page" : undefined}
             >
               Submissions
             </Link>
           </nav>
         </div>
 
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <span className="hidden text-xs text-text-muted sm:inline">{username}</span>
 
-
-        {/* Right: User Status & Mobile Toggle */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {/* Active User Badge */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-elevated border border-white/5 text-xs text-text-secondary">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-accepted animate-pulse" />
-            <span className="font-mono text-text-primary font-medium">{username}</span>
-          </div>
-
-          {/* Profile Menu Trigger */}
-          <div className="relative">
+          <div className="relative" ref={profileMenuRef}>
             <button
               type="button"
-              onClick={() => setShowProfileMenu((prev) => !prev)}
-              aria-label="User menu"
-              className="flex items-center gap-2 rounded-full p-0.5 hover:ring-1 hover:ring-primary-container transition-all cursor-pointer"
+              onClick={() => {
+                setShowProfileMenu((prev) => !prev);
+                setShowMobileMenu(false);
+              }}
+              aria-label="Account menu"
+              aria-haspopup="menu"
+              aria-expanded={showProfileMenu}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-wine-deep to-primary-container text-[11px] font-semibold text-white ring-offset-2 ring-offset-surface-base transition-shadow hover:ring-2 hover:ring-primary/60"
             >
-              <div className="relative h-8 w-8 rounded-full bg-gradient-to-br from-brand-wine-deep to-primary-container flex items-center justify-center text-xs font-bold text-white shadow-xs">
-                {username.slice(0, 2).toUpperCase()}
-                <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-status-accepted ring-2 ring-surface-base" />
-              </div>
+              {getInitials(username)}
             </button>
 
-            {/* Profile Dropdown */}
-            {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-surface-elevated p-2 shadow-2xl z-50 backdrop-blur-xl">
-                <div className="px-3 py-2 border-b border-white/5">
-                  <p className="text-xs font-semibold text-text-primary truncate">{username}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">Signed In</p>
+            {showProfileMenu ? (
+              <div
+                role="menu"
+                aria-label="Account"
+                className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-border-hairline bg-surface-elevated p-1.5 shadow-xl"
+              >
+                <div className="border-b border-border-hairline px-2.5 py-2">
+                  <p className="truncate text-xs font-medium text-text-primary">{username}</p>
+                  <p className="mt-0.5 text-[11px] text-text-muted">Signed in</p>
                 </div>
 
                 <div className="py-1">
                   <Link
                     to="/"
-                    onClick={() => setShowProfileMenu(false)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors cursor-pointer"
+                    role="menuitem"
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
                   >
                     <Code2 className="h-3.5 w-3.5 text-primary" />
-                    <span>Problems Directory</span>
+                    Problems
                   </Link>
-
                   <Link
                     to="/submissions"
-                    onClick={() => setShowProfileMenu(false)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors cursor-pointer"
+                    role="menuitem"
+                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
                   >
                     <ListOrdered className="h-3.5 w-3.5 text-status-accepted" />
-                    <span>My Submissions</span>
+                    Submissions
                   </Link>
                 </div>
 
-                <div className="pt-1 border-t border-white/5">
+                <div className="border-t border-border-hairline pt-1">
                   <button
                     type="button"
+                    role="menuitem"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-status-error hover:bg-surface-hover rounded-lg transition-colors cursor-pointer text-left"
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-status-error transition-colors hover:bg-surface-hover"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    Sign Out
+                    Sign out
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
-          {/* Mobile Menu Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setShowMobileMenu((prev) => !prev)}
-            aria-label="Toggle navigation menu"
-            className="md:hidden p-1.5 text-text-secondary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors cursor-pointer"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => {
+              setShowMobileMenu((prev) => !prev);
+              setShowProfileMenu(false);
+            }}
+            aria-label={showMobileMenu ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={showMobileMenu}
+            aria-controls="mobile-navigation"
           >
             {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Mobile Slide-down Navigation Menu */}
-      {showMobileMenu && (
-        <div className="md:hidden border-t border-white/5 bg-[#0E0E14] px-4 py-3 space-y-2">
-
-
-          <div className="flex flex-col gap-1 pt-1">
+      {showMobileMenu ? (
+        <div
+          id="mobile-navigation"
+          ref={mobileMenuRef}
+          className="border-t border-border-hairline bg-surface-elevated px-4 py-3 md:hidden"
+        >
+          <nav aria-label="Mobile" className="flex flex-col gap-1">
             <Link
               to="/"
-              onClick={() => setShowMobileMenu(false)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
-                isActive("/") ? "bg-surface-hover text-text-primary font-semibold" : "text-text-secondary"
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${
+                isActive("/") ? "bg-surface-hover text-text-primary" : "text-text-secondary"
               }`}
             >
               <Code2 className="h-4 w-4 text-primary" />
-              <span>Problems</span>
+              Problems
             </Link>
-
             <Link
               to="/submissions"
-              onClick={() => setShowMobileMenu(false)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
-                isActive("/submissions") ? "bg-surface-hover text-text-primary font-semibold" : "text-text-secondary"
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium ${
+                isActive("/submissions")
+                  ? "bg-surface-hover text-text-primary"
+                  : "text-text-secondary"
               }`}
             >
               <ListOrdered className="h-4 w-4 text-status-accepted" />
-              <span>Submissions</span>
+              Submissions
             </Link>
-
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-status-error hover:bg-surface-hover text-left cursor-pointer"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium text-status-error transition-colors hover:bg-surface-hover"
             >
               <LogOut className="h-4 w-4" />
-              <span>Sign Out</span>
+              Sign out
             </button>
-          </div>
+          </nav>
         </div>
-      )}
+      ) : null}
     </header>
   );
 }
