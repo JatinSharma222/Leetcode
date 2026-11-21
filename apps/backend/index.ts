@@ -5,7 +5,18 @@ import { appRouter } from "./src/routes/index";
 import { prisma } from "@repo/db";
 
 export const app = express();
-app.set("trust proxy", true);
+// Trust first proxy hop by default for sanitized req.ip
+const trustProxyConfig = process.env.TRUST_PROXY ?? "1";
+app.set(
+  "trust proxy",
+  trustProxyConfig === "true"
+    ? true
+    : trustProxyConfig === "false"
+      ? false
+      : Number.isNaN(Number(trustProxyConfig))
+        ? trustProxyConfig
+        : Number(trustProxyConfig),
+);
 
 const defaultAllowedOrigins = [
   "http://localhost:3000",
@@ -30,7 +41,6 @@ app.use(
 
       if (
         allowedOriginsSet.has(origin) ||
-        origin.endsWith(".duckdns.org") ||
         /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
       ) {
         return callback(null, true);

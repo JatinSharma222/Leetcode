@@ -100,12 +100,7 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
       if (req.user?.userId) {
         return `user:${req.user.userId}`;
       }
-      const forwarded = req.headers["x-forwarded-for"];
-      const ip =
-        typeof forwarded === "string"
-          ? forwarded.split(",")[0]?.trim()
-          : req.ip || req.socket?.remoteAddress || "unknown";
-      return `ip:${ip}`;
+      return `ip:${req.ip || req.socket?.remoteAddress || "unknown"}`;
     });
 
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -209,11 +204,6 @@ export const submissionRateLimiter = createRateLimiter({
     if (req.user?.userId) {
       return `user:${req.user.userId}`;
     }
-    const forwarded = req.headers["x-forwarded-for"];
-    const ip =
-      typeof forwarded === "string"
-        ? forwarded.split(",")[0]?.trim()
-        : req.ip || req.socket?.remoteAddress || "unknown";
-    return `ip:${ip}`;
+    return `ip:${req.ip || req.socket?.remoteAddress || "unknown"}`;
   },
 });
