@@ -1,84 +1,86 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
-  Search,
-  ArrowRight,
   AlertTriangle,
+  ArrowRight,
+  Bookmark,
   CheckCircle2,
+  Circle,
+  History,
+  RotateCcw,
+  Search,
   Shuffle,
   Star,
 } from "lucide-react";
+import { toast } from "sonner";
+
 import Navbar from "@/components/ui/Navbar";
 import StatsOverview from "@/components/ui/StatsOverview";
 import ActivityHeatmap from "@/components/ui/ActivityHeatmap";
-import type { Question, Submission } from "@/lib/types";
-import { fetchQuestions, fetchUserSubmissions, getBookmarkedProblemIds, toggleBookmarkedProblem } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  fetchAllQuestions,
+  fetchSubmissionStats,
+  getBookmarkedProblemIds,
+  toggleBookmarkedProblem,
+} from "@/lib/api";
+import type { DifficultyLevel, Question, UserStats } from "@/lib/types";
+import { getDifficultyMeta, getModifierKey } from "@/lib/ui";
+import { usePageTitle } from "@/lib/usePageTitle";
 
-const DIFFICULTY_MAP: Record<string, { label: "Easy" | "Medium" | "Hard"; color: string; bg: string }> = {
-  "sum-two-numbers": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "reverse-string": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  fizzbuzz: { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "palindrome-check": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  factorial: { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "max-in-array": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "gcd-two-numbers": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "count-vowels": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-  "two-sum": { label: "Medium", color: "text-status-warning", bg: "bg-status-warning/10 border-status-warning/20" },
-  "binary-to-decimal": { label: "Easy", color: "text-status-accepted", bg: "bg-status-accepted/10 border-status-accepted/20" },
-};
-
-const TOPICS_MAP: Record<string, string[]> = {
-  "sum-two-numbers": ["Math", "Basic I/O"],
-  "reverse-string": ["Two Pointers", "String"],
-  fizzbuzz: ["Math", "Simulation"],
-  "palindrome-check": ["Two Pointers", "String"],
-  factorial: ["Math", "Recursion"],
-  "max-in-array": ["Array", "Linear Search"],
-  "gcd-two-numbers": ["Math", "Euclidean Algorithm"],
-  "count-vowels": ["String", "Hash Table"],
-  "two-sum": ["Array", "Hash Table"],
-  "binary-to-decimal": ["Math", "Bit Manipulation"],
-};
+type DifficultyFilter = "All" | DifficultyLevel;
+type StatusFilter = "All" | "Solved" | "Unsolved" | "Bookmarked";
 
 export default function Dashboard() {
+  usePageTitle("Problems");
+
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const modifier = getModifierKey();
+
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [difficultyFilter, setDifficultyFilter] = useState<"All" | "Easy" | "Medium" | "Hard">("All");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Solved" | "Unsolved" | "Bookmarked">("All");
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>("All");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [questionsData, submissionsData] = await Promise.all([
-          fetchQuestions(),
-          fetchUserSubmissions().catch(() => []),
-        ]);
-        setQuestions(questionsData);
-        setSubmissions(submissionsData);
-        setBookmarkedIds(new Set(getBookmarkedProblemIds()));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load problems.");
-      } finally {
-        setLoading(false);
-      }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [questionList, userStats] = await Promise.all([
+        fetchAllQuestions(),
+        fetchSubmissionStats(),
+      ]);
+      setQuestions(questionList);
+      setStats(userStats);
+      setBookmarkedIds(new Set(getBookmarkedProblemIds()));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load the problem set.");
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
 
-  // Cmd+K shortcut to focus search
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
         searchInputRef.current?.focus();
       }
     };
@@ -86,327 +88,403 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleToggleBookmark = (problemId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleBookmarkedProblem(problemId);
-    setBookmarkedIds(new Set(getBookmarkedProblemIds()));
-  };
-
   const solvedQuestionIds = useMemo(
+    () => new Set(stats?.solvedQuestionIds ?? []),
+    [stats],
+  );
+
+  const questionNumbers = useMemo(
+    () => new Map(questions.map((question, index) => [question.id, index + 1])),
+    [questions],
+  );
+
+  const categories = useMemo(
     () =>
-      new Set(
-        submissions
-          .filter((s) => s.status === "Success" || (s.status as string) === "Accepted")
-          .map((s) => s.questionId),
+      [...new Set(questions.map((question) => question.category).filter(Boolean) as string[])].sort(
+        (a, b) => a.localeCompare(b),
       ),
-    [submissions],
+    [questions],
   );
 
-  // Breakdown counts
-  const easyQuestions = questions.filter(
-    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy") === "Easy",
-  );
-  const mediumQuestions = questions.filter(
-    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label) === "Medium",
-  );
-  const hardQuestions = questions.filter(
-    (q) => (q.difficulty || DIFFICULTY_MAP[q.id]?.label) === "Hard",
-  );
-
-  const easySolved = easyQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
-  const mediumSolved = mediumQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
-  const hardSolved = hardQuestions.filter((q) => solvedQuestionIds.has(q.id)).length;
-
-  const acceptanceRate = useMemo(() => {
-    if (submissions.length === 0) return 0;
-    const successful = submissions.filter(
-      (s) => s.status === "Success" || (s.status as string) === "Accepted",
-    ).length;
-    return Math.round((successful / submissions.length) * 1000) / 10;
-  }, [submissions]);
-
-  // Deterministic daily challenge based on day of year
-  const dailyQuestion = useMemo(() => {
-    if (questions.length === 0) return null;
-    const now = new Date();
-    const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
-    return questions[dayOfYear % questions.length] || questions[0] || null;
-  }, [questions]);
-
-  // Filtered problems list
   const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
-      const matchSearch =
-        q.title.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-        q.id.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-        (TOPICS_MAP[q.id] || []).some((t) => t.toLowerCase().includes(searchQuery.trim().toLowerCase()));
-      if (!matchSearch) return false;
+    const query = searchQuery.trim().toLowerCase();
 
-      const qDiff = q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy";
-      if (difficultyFilter !== "All" && qDiff !== difficultyFilter) return false;
+    return questions.filter((question) => {
+      if (query) {
+        const haystack = [
+          question.title,
+          question.id,
+          question.category ?? "",
+          question.difficulty ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
 
-      const isSolved = solvedQuestionIds.has(q.id);
+      if (difficultyFilter !== "All" && question.difficulty !== difficultyFilter) return false;
+      if (categoryFilter !== "All" && question.category !== categoryFilter) return false;
+
+      const isSolved = solvedQuestionIds.has(question.id);
       if (statusFilter === "Solved" && !isSolved) return false;
       if (statusFilter === "Unsolved" && isSolved) return false;
-      if (statusFilter === "Bookmarked" && !bookmarkedIds.has(q.id)) return false;
+      if (statusFilter === "Bookmarked" && !bookmarkedIds.has(question.id)) return false;
 
       return true;
     });
-  }, [questions, searchQuery, difficultyFilter, statusFilter, solvedQuestionIds, bookmarkedIds]);
+  }, [
+    questions,
+    searchQuery,
+    difficultyFilter,
+    categoryFilter,
+    statusFilter,
+    solvedQuestionIds,
+    bookmarkedIds,
+  ]);
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    difficultyFilter !== "All" ||
+    statusFilter !== "All" ||
+    categoryFilter !== "All";
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setDifficultyFilter("All");
+    setStatusFilter("All");
+    setCategoryFilter("All");
+  };
+
+  const handleToggleBookmark = (question: Question) => {
+    const isBookmarked = toggleBookmarkedProblem(question.id);
+    setBookmarkedIds(new Set(getBookmarkedProblemIds()));
+    toast(isBookmarked ? "Problem bookmarked" : "Bookmark removed", {
+      description: question.title,
+    });
+  };
 
   const handlePickRandom = () => {
     if (questions.length === 0) return;
-    const unsolved = questions.filter((q) => !solvedQuestionIds.has(q.id));
+    const unsolved = questions.filter((question) => !solvedQuestionIds.has(question.id));
     const pool = unsolved.length > 0 ? unsolved : questions;
-    const randomQ = pool[Math.floor(Math.random() * pool.length)];
-    if (randomQ) {
-      navigate(`/problem/${randomQ.id}`);
-    }
+    const randomQuestion = pool[Math.floor(Math.random() * pool.length)];
+    if (randomQuestion) navigate(`/problem/${randomQuestion.id}`);
   };
 
   return (
-    <div className="min-h-screen bg-surface-base text-text-primary font-sans">
+    <div className="min-h-screen bg-surface-base font-sans text-text-primary">
       <Navbar />
 
-      <main className="w-full max-w-[1560px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Error Alert */}
-        {error && (
-          <div className="mb-6 flex items-center gap-2 rounded-xl border border-status-error/30 bg-status-error/10 px-4 py-3 text-xs text-status-error">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {/* SECTION 1: Performance & Streak Overview */}
-        <StatsOverview
-          totalQuestions={questions.length}
-          solvedCount={solvedQuestionIds.size}
-          totalSubmissions={submissions.length}
-          acceptanceRate={acceptanceRate}
-          easySolved={easySolved}
-          easyTotal={easyQuestions.length}
-          mediumSolved={mediumSolved}
-          mediumTotal={mediumQuestions.length}
-          hardSolved={hardSolved}
-          hardTotal={hardQuestions.length}
-          dailyQuestion={dailyQuestion}
-          isDailySolved={dailyQuestion ? solvedQuestionIds.has(dailyQuestion.id) : false}
-          submissions={submissions}
-        />
-
-        {/* SECTION 2: 365-Day Activity Ledger & Submission Heatmap */}
-        <ActivityHeatmap submissions={submissions} />
-
-        {/* SECTION 3: Filter & Search Command Toolbar */}
-        <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search box with cmd+K */}
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search problems, algorithms, tags..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 w-full pl-9 pr-12 text-xs bg-surface-elevated text-text-primary placeholder:text-text-muted rounded-lg border border-white/10 shadow-inner focus:outline-none focus:border-primary-container transition-colors"
-            />
-            <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-base text-text-muted border border-white/10 absolute right-2.5 top-1/2 -translate-y-1/2 select-none">
-              ⌘K
-            </kbd>
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Problem set
+            </p>
+            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Problems</h1>
+            <p className="mt-1 max-w-2xl text-sm text-text-secondary">
+              Browse the library, track what you have solved, and jump back into practice.
+            </p>
           </div>
 
-          {/* Difficulty, Status & Shuffle Pills */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Difficulty Filter */}
-            <div className="flex items-center rounded-lg border border-white/5 bg-surface-elevated p-1 text-xs">
-              {(["All", "Easy", "Medium", "Hard"] as const).map((diff) => (
-                <button
-                  key={diff}
-                  type="button"
-                  onClick={() => setDifficultyFilter(diff)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                    difficultyFilter === diff
-                      ? "bg-surface-hover text-text-primary font-semibold shadow-xs"
-                      : "text-text-muted hover:text-text-primary"
-                  }`}
-                >
-                  {diff}
-                </button>
-              ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={handlePickRandom} disabled={questions.length === 0}>
+              <Shuffle />
+              Random problem
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/submissions">
+                <History />
+                Submissions
+              </Link>
+            </Button>
+          </div>
+        </header>
+
+        {error ? (
+          <Card className="mb-6 border-status-error/30 bg-status-error/5">
+            <CardContent className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-error" />
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Could not load the problem set</p>
+                  <p className="mt-0.5 text-xs text-text-muted">{error}</p>
+                </div>
+              </div>
+              <Button variant="secondary" onClick={loadData}>
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <StatsOverview stats={stats} loading={loading} />
+
+        <Card className="mt-6 overflow-hidden">
+          <CardHeader className="gap-3 border-b border-border-hairline sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">All problems</CardTitle>
+              <p className="mt-1 text-xs text-text-muted">
+                {loading
+                  ? "Loading problems…"
+                  : `${filteredQuestions.length} of ${questions.length} problems`}
+              </p>
+            </div>
+            {hasActiveFilters ? (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <RotateCcw />
+                Clear filters
+              </Button>
+            ) : null}
+          </CardHeader>
+
+          <div className="flex flex-col gap-3 border-b border-border-hairline p-4 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+              <Input
+                ref={searchInputRef}
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by title, topic, or ID"
+                aria-label="Search problems"
+                className="pl-9 pr-16"
+              />
+              <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border-hairline bg-surface-container px-1.5 py-0.5 font-mono text-[10px] text-text-muted sm:block">
+                {modifier}K
+              </kbd>
             </div>
 
-            {/* Status Filter */}
-            <div className="flex items-center rounded-lg border border-white/5 bg-surface-elevated p-1 text-xs">
-              {(["All", "Solved", "Unsolved", "Bookmarked"] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                    statusFilter === st
-                      ? "bg-surface-hover text-text-primary font-semibold shadow-xs"
-                      : "text-text-muted hover:text-text-primary"
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex">
+              <Select
+                value={difficultyFilter}
+                onChange={(event) => setDifficultyFilter(event.target.value as DifficultyFilter)}
+                aria-label="Filter by difficulty"
+                className="lg:w-32"
+              >
+                <option value="All">Difficulty</option>
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </Select>
+
+              <Select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                aria-label="Filter by status"
+                className="lg:w-36"
+              >
+                <option value="All">Status</option>
+                <option value="Solved">Solved</option>
+                <option value="Unsolved">Unsolved</option>
+                <option value="Bookmarked">Bookmarked</option>
+              </Select>
+
+              <Select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                aria-label="Filter by topic"
+                className="col-span-2 sm:col-span-1 lg:w-48"
+              >
+                <option value="All">All topics</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </Select>
             </div>
-
-            {/* Pick Random */}
-            <button
-              type="button"
-              onClick={handlePickRandom}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-hover hover:bg-surface-container-high text-text-primary text-xs font-medium border border-white/5 transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <Shuffle className="h-3 w-3 text-status-warning" />
-              <span>Random</span>
-            </button>
           </div>
-        </div>
 
-        {/* SECTION 4: Problem Directory Table */}
-        <div className="overflow-hidden rounded-xl border border-white/5 bg-surface-elevated shadow-xl">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="border-b border-white/5 bg-surface-container-low/60 text-[11px] font-mono font-semibold uppercase tracking-wider text-text-muted">
-              <tr>
-                <th scope="col" className="px-4 py-3 w-14 text-center">Status</th>
-                <th scope="col" className="px-5 py-3">Challenge</th>
-                <th scope="col" className="px-5 py-3 w-28">Difficulty</th>
-                <th scope="col" className="px-5 py-3 hidden md:table-cell w-44">Categories</th>
-                <th scope="col" className="px-5 py-3 hidden sm:table-cell text-right w-24">Tests</th>
-                <th scope="col" className="px-5 py-3 text-right w-28">Action</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-white/5">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-14 text-center text-text-muted">
-                    <div className="inline-flex items-center gap-2 font-mono text-xs">
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
-                      Loading challenge archives...
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-border-hairline bg-surface-container-low/40 text-[11px] uppercase tracking-wide text-text-muted">
+                  <th scope="col" className="w-12 px-4 py-3 text-center font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-medium">
+                    Problem
+                  </th>
+                  <th scope="col" className="w-28 px-4 py-3 font-medium">
+                    Difficulty
+                  </th>
+                  <th scope="col" className="hidden w-56 px-4 py-3 font-medium lg:table-cell">
+                    Topic
+                  </th>
+                  <th scope="col" className="hidden w-20 px-4 py-3 text-right font-medium sm:table-cell">
+                    Tests
+                  </th>
+                  <th scope="col" className="w-32 px-4 py-3 text-right font-medium">
+                    Action
+                  </th>
                 </tr>
-              ) : filteredQuestions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-14 text-center text-text-muted text-xs font-sans">
-                    {questions.length === 0
-                      ? "No problems found in the archive."
-                      : "No problems match your current criteria."}
-                  </td>
-                </tr>
-              ) : (
-                filteredQuestions.map((q, idx) => {
-                  const isSolved = solvedQuestionIds.has(q.id);
-                  const isBookmarked = bookmarkedIds.has(q.id);
-                  const diffLabel = q.difficulty || DIFFICULTY_MAP[q.id]?.label || "Easy";
-                  const diffColor =
-                    diffLabel === "Hard"
-                      ? "text-status-error"
-                      : diffLabel === "Medium"
-                        ? "text-status-warning"
-                        : "text-status-accepted";
-                  const diffBg =
-                    diffLabel === "Hard"
-                      ? "bg-status-error/10 border-status-error/20"
-                      : diffLabel === "Medium"
-                        ? "bg-status-warning/10 border-status-warning/20"
-                        : "bg-status-accepted/10 border-status-accepted/20";
-                  const diffObj = { label: diffLabel, color: diffColor, bg: diffBg };
-                  const topicsList = TOPICS_MAP[q.id] || ["Algorithms"];
+              </thead>
 
-                  return (
-                    <tr
-                      key={q.id}
-                      className="group transition-colors hover:bg-surface-hover/50 cursor-pointer"
-                      onClick={() => navigate(`/problem/${q.id}`)}
-                    >
-                      {/* Solved Status & Bookmark Icon */}
-                      <td className="px-4 py-3.5 text-center align-middle">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {isSolved ? (
-                            <CheckCircle2 className="h-4 w-4 text-status-accepted shrink-0" />
-                          ) : (
-                            <span className="text-text-muted/30 text-xs font-mono w-4 shrink-0">—</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleBookmark(q.id, e)}
-                            title={isBookmarked ? "Bookmarked problem" : "Bookmark problem"}
-                            className="text-text-muted hover:text-status-warning transition-colors cursor-pointer"
-                          >
-                            <Star className={`h-3.5 w-3.5 ${isBookmarked ? "text-status-warning fill-current" : ""}`} />
-                          </button>
-                        </div>
+              <tbody className="divide-y divide-border-hairline">
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, index) => (
+                    <tr key={index}>
+                      <td className="px-4 py-4 text-center">
+                        <Skeleton className="mx-auto h-4 w-4 rounded-full" />
                       </td>
-
-                      {/* Problem Title & Number */}
-                      <td className="px-5 py-3.5">
-                        <Link
-                          to={`/problem/${q.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-medium text-text-primary group-hover:text-primary transition-colors flex items-center gap-2"
-                        >
-                          <span className="font-mono text-text-muted text-xs">
-                            #{idx + 1}
-                          </span>
-                          <span className="font-sans text-sm">{q.title}</span>
-                        </Link>
+                      <td className="px-4 py-4">
+                        <Skeleton className="h-4 w-56" />
                       </td>
-
-                      {/* Difficulty Badge */}
-                      <td className="px-5 py-3.5">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold font-mono border ${diffObj.bg} ${diffObj.color}`}
-                        >
-                          {diffObj.label}
-                        </span>
+                      <td className="px-4 py-4">
+                        <Skeleton className="h-5 w-16 rounded-full" />
                       </td>
-
-                      {/* Topics */}
-                      <td className="px-5 py-3.5 hidden md:table-cell">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {topicsList.slice(0, 2).map((t) => (
-                            <span
-                              key={t}
-                              className="px-2 py-0.5 rounded text-[10px] font-mono bg-surface-container text-text-secondary border border-white/5"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
+                      <td className="hidden px-4 py-4 lg:table-cell">
+                        <Skeleton className="h-4 w-32" />
                       </td>
-
-                      {/* Tests count */}
-                      <td className="px-5 py-3.5 hidden sm:table-cell text-right font-mono text-xs text-text-muted">
-                        {q._count?.testCases ?? "—"}
+                      <td className="hidden px-4 py-4 sm:table-cell">
+                        <Skeleton className="ml-auto h-4 w-8" />
                       </td>
-
-                      {/* Action Button */}
-                      <td className="px-5 py-3.5 text-right">
-                        <Link to={`/problem/${q.id}`} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className={`h-7 px-3 text-xs font-semibold rounded-lg inline-flex items-center gap-1 transition-all cursor-pointer ${
-                              isSolved
-                                ? "bg-surface-hover hover:bg-surface-container-high text-text-secondary hover:text-text-primary border border-white/5"
-                                : "bg-primary-container hover:bg-brand-wine-deep text-on-primary-container shadow-sm shadow-primary-container/20"
-                            }`}
-                          >
-                            <span>{isSolved ? "Review" : "Solve"}</span>
-                            <ArrowRight className="h-3 w-3" />
-                          </button>
-                        </Link>
+                      <td className="px-4 py-4">
+                        <Skeleton className="ml-auto h-7 w-20" />
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                ) : filteredQuestions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <EmptyState
+                        icon={Search}
+                        title={questions.length === 0 ? "No problems available" : "No matching problems"}
+                        description={
+                          questions.length === 0
+                            ? "The problem library is empty. Add problems to the database to get started."
+                            : "Try a different search term or clear the active filters."
+                        }
+                        className="rounded-none border-0 bg-transparent"
+                        action={
+                          questions.length === 0 ? undefined : (
+                            <Button variant="secondary" size="sm" onClick={resetFilters}>
+                              Clear filters
+                            </Button>
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  filteredQuestions.map((question) => {
+                    const isSolved = solvedQuestionIds.has(question.id);
+                    const isBookmarked = bookmarkedIds.has(question.id);
+                    const difficulty = getDifficultyMeta(question.difficulty);
+                    const number = questionNumbers.get(question.id) ?? 0;
+
+                    return (
+                      <tr
+                        key={question.id}
+                        onClick={() => navigate(`/problem/${question.id}`)}
+                        className="group cursor-pointer transition-colors hover:bg-surface-hover/50"
+                      >
+                        <td className="px-4 py-3.5 text-center">
+                          {isSolved ? (
+                            <CheckCircle2
+                              className="mx-auto h-4 w-4 text-status-accepted"
+                              aria-label="Solved"
+                            />
+                          ) : (
+                            <Circle
+                              className="mx-auto h-4 w-4 text-text-muted/40"
+                              aria-label="Not solved"
+                            />
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <Link
+                              to={`/problem/${question.id}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="flex min-w-0 items-center gap-2 text-sm font-medium text-text-primary transition-colors group-hover:text-primary"
+                            >
+                              <span className="font-mono text-xs text-text-muted">{number}.</span>
+                              <span className="truncate">{question.title}</span>
+                            </Link>
+                            <span className="text-[11px] text-text-muted lg:hidden">
+                              {question.category ?? "Uncategorized"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <Badge variant={difficulty.tone} className="gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${difficulty.dotClass}`} />
+                            {difficulty.label}
+                          </Badge>
+                        </td>
+
+                        <td className="hidden px-4 py-3.5 lg:table-cell">
+                          <span className="text-xs text-text-secondary">
+                            {question.category ?? "—"}
+                          </span>
+                        </td>
+
+                        <td className="hidden px-4 py-3.5 text-right font-mono text-xs text-text-muted sm:table-cell">
+                          {question._count?.testCases ?? "—"}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleToggleBookmark(question);
+                              }}
+                              aria-label={
+                                isBookmarked
+                                  ? `Remove bookmark from ${question.title}`
+                                  : `Bookmark ${question.title}`
+                              }
+                              aria-pressed={isBookmarked}
+                            >
+                              <Star
+                                className={isBookmarked ? "fill-current text-status-warning" : undefined}
+                              />
+                            </Button>
+
+                            <Button
+                              variant={isSolved ? "secondary" : "primary"}
+                              size="sm"
+                              asChild
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <Link to={`/problem/${question.id}`}>
+                                {isSolved ? "Review" : "Solve"}
+                                <ArrowRight />
+                              </Link>
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <div className="mt-6">
+          <ActivityHeatmap
+            activity={stats?.activity ?? {}}
+            totalSubmissions={stats?.totalSubmissions ?? 0}
+            activeDays={stats?.activeDays ?? 0}
+            currentStreak={stats?.currentStreak ?? 0}
+          />
         </div>
+
+        {!loading && questions.length > 0 && questions.length >= 100 ? (
+          <p className="mt-4 flex items-center gap-1.5 text-[11px] text-text-muted">
+            <Bookmark className="h-3 w-3" />
+            Showing the first 100 problems. Use search to narrow the list.
+          </p>
+        ) : null}
       </main>
     </div>
   );

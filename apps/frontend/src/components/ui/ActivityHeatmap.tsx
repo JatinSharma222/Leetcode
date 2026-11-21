@@ -1,207 +1,162 @@
-import React, { useMemo } from "react";
-import type { Submission } from "@/lib/types";
+import { useMemo } from "react";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ActivityHeatmapProps {
-  submissions?: Submission[];
+  activity: Record<string, number>;
+  totalSubmissions?: number;
+  activeDays?: number;
+  currentStreak?: number;
 }
 
-export default function ActivityHeatmap({ submissions = [] }: ActivityHeatmapProps) {
-  const { weeks, totalRuns, activeStreak, activeDays, monthLabels } = useMemo(() => {
-    const colorLevels = [
-      "#1b1b1f", // Level 0: empty
-      "#35151e", // Level 1: subtle wine
-      "#68001a", // Level 2: medium wine
-      "#9E1B32", // Level 3: deep brand wine
-      "#e11d48", // Level 4: bright wine/crimson
-    ];
+const COLOR_LEVELS = ["#1b1b1f", "#35151e", "#68001a", "#9e1b32", "#e11d48"];
 
-    // Map date strings (YYYY-MM-DD) to count
-    const dateCounts = new Map<string, number>();
-    for (const sub of submissions) {
-      if (!sub.createdAt) continue;
-      const d = new Date(sub.createdAt);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      dateCounts.set(key, (dateCounts.get(key) || 0) + 1);
-    }
+function toDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
-    // Build 52 weeks ending today (Sunday through Saturday columns)
+export default function ActivityHeatmap({
+  activity,
+  totalSubmissions = 0,
+  activeDays = 0,
+  currentStreak = 0,
+}: ActivityHeatmapProps) {
+  const { grid, months } = useMemo(() => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    endDate.setUTCDate(endDate.getUTCDate() + (6 - endDate.getUTCDay()));
 
-    // End on current week Saturday
-    const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
-    const daysToSaturday = 6 - dayOfWeek;
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() + daysToSaturday);
-
-    // Start 52 weeks before (52 * 7 = 364 days)
     const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - (52 * 7 - 1));
+    startDate.setUTCDate(endDate.getUTCDate() - (52 * 7 - 1));
 
-    const grid: { level: number; dateStr: string; count: number }[][] = [];
-    const months: { label: string; colIdx: number }[] = [];
+    const weeks: { level: number; date: string; count: number }[][] = [];
+    const monthLabels: { label: string; column: number }[] = [];
     let lastMonth = -1;
+    const cursor = new Date(startDate);
 
-    const curr = new Date(startDate);
-    for (let w = 0; w < 52; w++) {
-      const col: { level: number; dateStr: string; count: number }[] = [];
-      for (let d = 0; d < 7; d++) {
-        const key = `${curr.getFullYear()}-${String(curr.getMonth() + 1).padStart(2, "0")}-${String(curr.getDate()).padStart(2, "0")}`;
-        const count = dateCounts.get(key) || 0;
+    for (let week = 0; week < 52; week += 1) {
+      const column: { level: number; date: string; count: number }[] = [];
 
+      for (let day = 0; day < 7; day += 1) {
+        const key = toDateKey(cursor);
+        const count = activity[key] ?? 0;
         let level = 0;
         if (count >= 7) level = 4;
         else if (count >= 4) level = 3;
         else if (count >= 2) level = 2;
         else if (count >= 1) level = 1;
 
-        if (d === 0 && curr.getMonth() !== lastMonth) {
-          months.push({
-            label: curr.toLocaleString("default", { month: "short" }),
-            colIdx: w,
+        if (day === 0 && cursor.getUTCMonth() !== lastMonth) {
+          monthLabels.push({
+            label: cursor.toLocaleString("en", { month: "short", timeZone: "UTC" }),
+            column: week,
           });
-          lastMonth = curr.getMonth();
+          lastMonth = cursor.getUTCMonth();
         }
 
-        col.push({ level, dateStr: key, count });
-        curr.setDate(curr.getDate() + 1);
+        column.push({ level, date: key, count });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
       }
-      grid.push(col);
+
+      weeks.push(column);
     }
 
-    // Compute active streak leading up to today
-    let streak = 0;
-    const checkDate = new Date(today);
-    const todayKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
-    const todayHasRuns = (dateCounts.get(todayKey) || 0) > 0;
-
-    if (!todayHasRuns) {
-      // Check if streak was active as of yesterday
-      checkDate.setDate(checkDate.getDate() - 1);
-    }
-
-    while (true) {
-      const k = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, "0")}-${String(checkDate.getDate()).padStart(2, "0")}`;
-      if ((dateCounts.get(k) || 0) > 0) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-
-    return {
-      weeks: { grid, colorLevels },
-      totalRuns: submissions.length,
-      activeStreak: streak,
-      activeDays: dateCounts.size,
-      monthLabels: months,
-    };
-  }, [submissions]);
+    return { grid: weeks, months: monthLabels };
+  }, [activity]);
 
   return (
-    <section className="bg-surface-elevated rounded-xl p-6 shadow-xl flex flex-col gap-4 border border-white/5 mb-6">
-      {/* Heatmap Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-bold text-text-primary">
-            365-Day Activity Ledger
-          </h3>
-          <p className="text-xs text-text-muted mt-0.5 font-sans">
-            Continuous evaluation record synced from your live judge submissions
-          </p>
+    <Card>
+      <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <CardTitle>Activity</CardTitle>
+          <p className="text-xs text-text-muted">Submissions over the last 12 months</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted">Submissions:</span>
-            <span className="text-text-primary font-semibold">{totalRuns}</span>
+        <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-text-muted">Submissions</dt>
+            <dd className="font-mono font-semibold text-text-primary">{totalSubmissions}</dd>
           </div>
-          <span className="text-text-muted">•</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted">Active Days:</span>
-            <span className="text-primary font-semibold">{activeDays}</span>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-text-muted">Active days</dt>
+            <dd className="font-mono font-semibold text-text-primary">{activeDays}</dd>
           </div>
-          <span className="text-text-muted">•</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-text-muted">Current Streak:</span>
-            <span className="text-status-warning font-semibold">
-              {activeStreak} {activeStreak === 1 ? "day" : "days"}
-            </span>
+          <div className="flex items-baseline gap-1.5">
+            <dt className="text-text-muted">Streak</dt>
+            <dd className="font-mono font-semibold text-status-warning">
+              {currentStreak} {currentStreak === 1 ? "day" : "days"}
+            </dd>
           </div>
-        </div>
-      </div>
+        </dl>
+      </CardHeader>
 
-      {/* Heatmap Visual Matrix */}
-      <div className="w-full overflow-x-auto pb-1">
-        <div className="min-w-[840px] flex flex-col gap-1.5">
-          {/* Month Labels */}
-          <div className="relative h-4 text-text-muted font-mono text-[10px] uppercase tracking-wider pl-8">
-            {monthLabels.map((m, idx) => (
-              <span
-                key={idx}
-                className="absolute"
-                style={{ left: `${32 + m.colIdx * 15.2}px` }}
-              >
-                {m.label}
-              </span>
-            ))}
-          </div>
-
-          {/* Matrix Rows with Day Labels */}
-          <div className="flex gap-2">
-            <div className="flex flex-col justify-between text-text-muted font-mono text-[10px] py-0.5 pr-1 select-none">
-              <span>Mon</span>
-              <span>Wed</span>
-              <span>Fri</span>
-            </div>
-
-            <div className="flex-1 w-full">
-              <svg className="w-full h-26" fill="none" viewBox="0 0 832 110" xmlns="http://www.w3.org/2000/svg">
-                {weeks.grid.map((col, colIdx) => (
-                  <g key={colIdx}>
-                    {col.map((cell, rowIdx) => (
-                      <rect
-                        key={rowIdx}
-                        x={colIdx * 16}
-                        y={rowIdx * 15}
-                        width="11.5"
-                        height="11.5"
-                        rx="2"
-                        fill={weeks.colorLevels[cell.level]}
-                        className="transition-colors hover:stroke-white/60 hover:stroke-[1.5]"
-                      >
-                        <title>{`${cell.count} ${cell.count === 1 ? "submission" : "submissions"} on ${cell.dateStr}`}</title>
-                      </rect>
-                    ))}
-                  </g>
-                ))}
-              </svg>
-            </div>
-          </div>
-
-          {/* Legend & Empty State Helper */}
-          <div className="flex items-center justify-between text-[10px] text-text-muted font-mono pt-1">
-            <span>
-              {totalRuns === 0
-                ? "No submissions logged yet. Solve a problem to begin your activity record!"
-                : `${totalRuns} total evaluations recorded across 52 weeks`}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span>Less</span>
-              {weeks.colorLevels.map((c, i) => (
-                <span
-                  key={i}
-                  className="w-2.5 h-2.5 rounded-[2px]"
-                  style={{ backgroundColor: c }}
-                />
+      <CardContent>
+        <div className="overflow-x-auto pb-1">
+          <div className="min-w-[760px]">
+            <svg
+              viewBox="0 0 832 126"
+              className="h-auto w-full text-text-muted"
+              role="img"
+              aria-label={`Activity heatmap with ${totalSubmissions} submissions across ${activeDays} active days`}
+            >
+              {months.map((month) => (
+                <text
+                  key={`${month.label}-${month.column}`}
+                  x={month.column * 16}
+                  y={10}
+                  fill="currentColor"
+                  fontSize="10"
+                  fontFamily="var(--font-mono)"
+                >
+                  {month.label}
+                </text>
               ))}
-              <span>More</span>
-            </div>
+
+              {grid.map((week, weekIndex) => (
+                <g key={weekIndex}>
+                  {week.map((cell, dayIndex) => (
+                    <rect
+                      key={cell.date}
+                      x={weekIndex * 16}
+                      y={20 + dayIndex * 15}
+                      width="11.5"
+                      height="11.5"
+                      rx="2"
+                      fill={COLOR_LEVELS[cell.level]}
+                      className="transition-colors hover:stroke-white/50 hover:stroke-[1.5]"
+                    >
+                      <title>
+                        {cell.count} {cell.count === 1 ? "submission" : "submissions"} on {cell.date}
+                      </title>
+                    </rect>
+                  ))}
+                </g>
+              ))}
+            </svg>
           </div>
         </div>
-      </div>
-    </section>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-[11px] text-text-muted">
+          <span>
+            {totalSubmissions === 0
+              ? "No submissions yet. Solve a problem to start your activity history."
+              : `${totalSubmissions} total ${totalSubmissions === 1 ? "submission" : "submissions"} recorded`}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span>Less</span>
+            {COLOR_LEVELS.map((color) => (
+              <span
+                key={color}
+                className="h-2.5 w-2.5 rounded-[2px]"
+                style={{ backgroundColor: color }}
+              />
+            ))}
+            <span>More</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

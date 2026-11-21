@@ -123,3 +123,8 @@ export function getDateKey(date: Date): string {
     date.getDate(),
   ).padStart(2, "0")}`;
 }
+
+export function getModifierKey(): string {
+  if (typeof navigator === "undefined") return "Ctrl";
+  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+}
