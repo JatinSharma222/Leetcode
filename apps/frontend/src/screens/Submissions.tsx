@@ -1,513 +1,605 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ArrowUpRight,
-  Download,
-  Terminal,
-  Search,
-  Copy,
-  Check,
   AlertTriangle,
-  GitFork,
+  ArrowRight,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Copy,
+  Download,
   FileCode2,
-  Cpu,
-  Layers,
-  Sparkles,
+  History,
+  Search,
+  Send,
+  Target,
+  Terminal,
+  X,
 } from "lucide-react";
 import MonacoEditor from "@monaco-editor/react";
+import { toast } from "sonner";
+
 import Navbar from "@/components/ui/Navbar";
-import type { Submission } from "@/lib/types";
-import { ApiError, fetchQuestions, fetchUserSubmissions } from "@/lib/api";
-import { getProblemMetadata } from "@/lib/problemMeta";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ApiError,
+  fetchSubmissionById,
+  fetchSubmissionStats,
+  fetchUserSubmissions,
+} from "@/lib/api";
+import { setForkPayload } from "@/lib/drafts";
+import { defineObsidianTheme, OBSIDIAN_THEME } from "@/lib/monaco";
+import type {
+  PaginationMetadata,
+  Submission,
+  SubmissionDetail,
+  UserStats,
+} from "@/lib/types";
+import {
+  formatDateTime,
+  formatRelativeTime,
+  getStatusMeta,
+} from "@/lib/ui";
+import { usePageTitle } from "@/lib/usePageTitle";
+
+const PAGE_SIZE = 20;
+
+const VERDICT_OPTIONS = [
+  { value: "All", label: "All verdicts" },
+  { value: "Accepted", label: "Accepted" },
+  { value: "WrongAnswer", label: "Wrong Answer" },
+  { value: "RuntimeError", label: "Runtime Error" },
+  { value: "TLE", label: "Time Limit Exceeded" },
+  { value: "CompileError", label: "Compile Error" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "All", label: "All languages" },
+  { value: "python", label: "Python 3" },
+  { value: "cpp", label: "C++ 17" },
+  { value: "javascript", label: "JavaScript" },
+];
+
+const EMPTY_PAGINATION: PaginationMetadata = {
+  page: 1,
+  limit: PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+};
+
+function StatCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: typeof Send;
+  accent: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between gap-2 pb-2">
+        <CardTitle className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {label}
+        </CardTitle>
+        <Icon className={`h-4 w-4 ${accent}`} />
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        <p className="font-display text-2xl font-semibold tracking-tight text-text-primary">{value}</p>
+        <p className="text-xs text-text-muted">{detail}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Submissions() {
+  usePageTitle("Submissions");
+
   const navigate = useNavigate();
+
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [questionTitles, setQuestionTitles] = useState<Record<string, string>>({});
+  const [pagination, setPagination] = useState<PaginationMetadata>(EMPTY_PAGINATION);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [languageFilter, setLanguageFilter] = useState("All");
+
   const [selectedSub, setSelectedSub] = useState<Submission | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<string>("All");
-  const [languageFilter, setLanguageFilter] = useState<string>("All");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const renderVerdictBadge = (status: string) => {
-    switch (status) {
-      case "Success":
-      case "Accepted":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-accepted/10 text-status-accepted font-mono font-semibold tracking-tight text-xs">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Accepted
-          </span>
-        );
-      case "WrongAnswer":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error font-mono font-semibold tracking-tight text-xs">
-            <XCircle className="h-3.5 w-3.5" />
-            Wrong Answer
-          </span>
-        );
-      case "TLE":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-warning/10 text-status-warning font-mono font-semibold tracking-tight text-xs">
-            <Clock className="h-3.5 w-3.5" />
-            TLE
-          </span>
-        );
-      case "MLE":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-semibold tracking-tight text-xs">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            MLE
-          </span>
-        );
-      case "CompileError":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error border border-status-error/20 font-mono font-semibold tracking-tight text-xs">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Compile Error
-          </span>
-        );
-      case "RuntimeError":
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error border border-status-error/20 font-mono font-semibold tracking-tight text-xs">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Runtime Error
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-status-error/10 text-status-error font-mono font-semibold tracking-tight text-xs">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {status}
-          </span>
-        );
-    }
-  };
+  const [detail, setDetail] = useState<SubmissionDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    async function loadSubmissions() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [subs, questions] = await Promise.all([fetchUserSubmissions(), fetchQuestions()]);
-        setSubmissions(subs);
-        setQuestionTitles(Object.fromEntries(questions.map((q) => [q.id, q.title])));
-        if (subs.length > 0) {
-          setSelectedSub(subs[0] ?? null);
-        }
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          navigate("/auth");
-          return;
-        }
-        setError(err instanceof Error ? err.message : "Failed to load submissions.");
-      } finally {
-        setLoading(false);
-      }
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, languageFilter]);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const data = await fetchSubmissionStats();
+      setStats(data);
+    } catch {
+      // The table can still work if aggregate stats fail.
+    } finally {
+      setStatsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const loadSubmissions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchUserSubmissions({
+        page,
+        limit: PAGE_SIZE,
+        status: statusFilter,
+        language: languageFilter,
+        search: debouncedSearch || undefined,
+      });
+
+      if (result.pagination.totalPages > 0 && page > result.pagination.totalPages) {
+        setPage(result.pagination.totalPages);
+        return;
+      }
+
+      setSubmissions(result.submissions);
+      setPagination(result.pagination);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate("/auth");
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Failed to load submissions.");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter, languageFilter, debouncedSearch, navigate]);
+
+  useEffect(() => {
     loadSubmissions();
-  }, [navigate]);
+  }, [loadSubmissions]);
 
-  const filteredSubmissions = useMemo(() => {
-    return submissions.filter((sub) => {
-      if (statusFilter !== "All") {
-        if (statusFilter === "Accepted") {
-          if (sub.status !== "Accepted" && sub.status !== "Success") return false;
-        } else if (sub.status !== statusFilter) {
-          return false;
-        }
+  useEffect(() => {
+    if (submissions.length === 0) {
+      setSelectedSub(null);
+      return;
+    }
+    if (!selectedSub || !submissions.some((submission) => submission.id === selectedSub.id)) {
+      setSelectedSub(submissions[0] ?? null);
+    }
+  }, [submissions, selectedSub]);
+
+  useEffect(() => {
+    if (!selectedSub) {
+      setDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDetail(null);
+    setDetailLoading(true);
+    fetchSubmissionById(selectedSub.id)
+      .then((result) => {
+        if (!cancelled) setDetail(result);
+      })
+      .catch(() => {
+        if (!cancelled) setDetail(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSub]);
+
+  const hasActiveFilters =
+    search.trim().length > 0 || statusFilter !== "All" || languageFilter !== "All";
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+    setLanguageFilter("All");
+    setPage(1);
+  };
+
+  const copyText = async (text: string, target: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedTarget(target);
+    setTimeout(() => setCopiedTarget(null), 1500);
+    toast.success("Copied to clipboard");
+  };
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const rows: Submission[] = [];
+      let exportPage = 1;
+      let totalPages = 1;
+
+      do {
+        const result = await fetchUserSubmissions({
+          page: exportPage,
+          limit: 100,
+          status: statusFilter,
+          language: languageFilter,
+          search: debouncedSearch || undefined,
+        });
+        rows.push(...result.submissions);
+        totalPages = result.pagination.totalPages;
+        exportPage += 1;
+      } while (exportPage <= totalPages && exportPage <= 100);
+
+      if (rows.length === 0) {
+        toast("No submissions to export");
+        return;
       }
-      if (languageFilter !== "All" && sub.language.toLowerCase() !== languageFilter.toLowerCase()) return false;
-      if (searchQuery.trim()) {
-        const qTitle = (questionTitles[sub.questionId] || sub.questionId).toLowerCase();
-        if (!qTitle.includes(searchQuery.trim().toLowerCase())) return false;
-      }
-      return true;
+
+      const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const header = [
+        "id",
+        "problem",
+        "status",
+        "language",
+        "passed",
+        "total",
+        "created_at",
+      ].join(",");
+      const body = rows
+        .map((submission) =>
+          [
+            escape(submission.id),
+            escape(submission.question?.title ?? submission.questionId),
+            escape(submission.status),
+            escape(submission.language),
+            submission.passedCount,
+            submission.totalCount,
+            escape(submission.createdAt),
+          ].join(","),
+        )
+        .join("\n");
+
+      const blob = new Blob([`${header}\n${body}`], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `ateliercode-submissions-${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${rows.length} submissions`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const openInEditor = (submission: Submission) => {
+    setForkPayload({
+      questionId: submission.questionId,
+      language: submission.language,
+      code: submission.code,
     });
-  }, [submissions, statusFilter, languageFilter, searchQuery, questionTitles]);
-
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    navigate(`/problem/${submission.questionId}`);
   };
 
-  const handleExportCSV = () => {
-    if (submissions.length === 0) return;
-    const headers = "id,questionId,status,language,passedCount,totalCount,createdAt\n";
-    const rows = submissions
-      .map((s) => `${s.id},${s.questionId},${s.status},${s.language},${s.passedCount},${s.totalCount},${s.createdAt}`)
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ateliercode_submissions_${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const acceptanceRate = stats?.acceptanceRate ?? 0;
+  const selected = detail && selectedSub && detail.id === selectedSub.id ? detail : selectedSub;
+  const caseResults = detail?.results ?? [];
+  const selectedMeta = selected ? getStatusMeta(selected.status) : null;
 
-  const acceptedCount = submissions.filter(
-    (s) => s.status === "Success" || (s.status as string) === "Accepted",
-  ).length;
-  const acceptanceRate = submissions.length > 0 ? Math.round((acceptedCount / submissions.length) * 1000) / 10 : 0;
-
-  const recentCount = useMemo(() => {
-    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return submissions.filter((s) => new Date(s.createdAt).getTime() >= oneWeekAgo).length;
-  }, [submissions]);
-
-  const solvedProblemIds = useMemo(() => {
-    return new Set(
-      submissions
-        .filter((s) => s.status === "Success" || (s.status as string) === "Accepted")
-        .map((s) => s.questionId),
-    );
-  }, [submissions]);
-
-  const primaryLanguage = useMemo(() => {
-    if (submissions.length === 0) return { name: "None", percent: 0 };
-    const counts: Record<string, number> = {};
-    for (const s of submissions) {
-      const lang = s.language.toLowerCase();
-      counts[lang] = (counts[lang] || 0) + 1;
-    }
-    let topLang = "python";
-    let topCount = 0;
-    for (const [lang, count] of Object.entries(counts)) {
-      if (count > topCount) {
-        topCount = count;
-        topLang = lang;
-      }
-    }
-    const labelMap: Record<string, string> = {
-      python: "Python 3",
-      cpp: "C++ 17",
-      javascript: "JavaScript",
-    };
-    return {
-      name: labelMap[topLang] || topLang.toUpperCase(),
-      percent: Math.round((topCount / submissions.length) * 100),
-    };
-  }, [submissions]);
-
-  const selectedEditorial = selectedSub ? getProblemMetadata(selectedSub.questionId) : null;
+  const languageSummary = useMemo(() => {
+    if (!stats) return "—";
+    const entries = Object.entries(stats.languageCounts);
+    if (entries.length === 0) return "—";
+    const [language, count] = entries.sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+    const label = LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ?? language;
+    return `${label} (${count})`;
+  }, [stats]);
 
   return (
-    <div className="min-h-screen bg-surface-base text-text-primary font-sans">
+    <div className="min-h-screen bg-surface-base font-sans text-text-primary">
       <Navbar />
 
-      <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Header Section with Tactical Telemetry Breadcrumbs */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-white/5">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-primary font-semibold">
-                Audited Telemetry Log
-              </span>
-              <span className="text-text-muted text-xs">•</span>
-              <span className="font-mono text-xs text-text-muted">Node: judge-cluster-eu-west-04</span>
-            </div>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-text-primary tracking-tight">
-              Submissions Ledger
-            </h1>
-            <p className="text-xs sm:text-sm text-text-secondary max-w-2xl font-sans">
-              Review evaluation verdicts, memory profiles, runtime percentiles, and inspect source snapshots across global test suites.
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+              History
+            </p>
+            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Submissions</h1>
+            <p className="mt-1 max-w-2xl text-sm text-text-secondary">
+              Review verdicts, inspect submitted code, and reopen a solution in the editor.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-hover text-text-secondary hover:text-text-primary text-xs font-medium transition-all shadow-xs border border-white/5 cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Export CSV</span>
-            </button>
-
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary-container hover:bg-brand-wine-deep text-on-primary-container text-xs font-semibold tracking-wide transition-all shadow-md shadow-primary-container/20 active:scale-[0.98]"
-            >
-              <Terminal className="h-3.5 w-3.5" />
-              <span>New Benchmark</span>
-            </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={handleExportCSV} disabled={exporting}>
+              <Download />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </Button>
+            <Button variant="primary" asChild>
+              <Link to="/">
+                <Terminal />
+                Practice
+              </Link>
+            </Button>
           </div>
-        </div>
+        </header>
 
-        {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-status-error/30 bg-status-error/10 px-4 py-3 text-xs text-status-error">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {/* 4-Up Metric Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1 */}
-          <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Total Submissions
-              </span>
-              <Terminal className="h-4 w-4 text-text-muted" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-display text-3xl font-bold text-text-primary">{submissions.length}</span>
-              <span className="font-mono text-xs text-tertiary font-medium">{recentCount} this wk</span>
-            </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
-              <span>Evaluated across test suites</span>
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Accepted Solutions
-              </span>
-              <CheckCircle2 className="h-4 w-4 text-status-accepted" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-display text-3xl font-bold text-text-primary">{acceptedCount}</span>
-              <span className="font-mono text-xs px-1.5 py-0.5 rounded-full bg-status-accepted/10 text-status-accepted font-semibold">
-                {acceptanceRate}% Rate
-              </span>
-            </div>
-            <div className="mt-3 w-full bg-surface-container-high rounded-full h-1.5 overflow-hidden">
-              <div className="bg-status-accepted h-full rounded-full" style={{ width: `${Math.min(acceptanceRate, 100)}%` }} />
-            </div>
-          </div>
-
-          {/* Card 3: Unique Problems Solved */}
-          <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Challenges Solved
-              </span>
-              <Layers className="h-4 w-4 text-primary" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-display text-3xl font-bold text-text-primary">
-                {solvedProblemIds.size}
-              </span>
-              <span className="font-mono text-[10px] uppercase px-1.5 py-0.5 rounded bg-primary-container/20 text-primary font-medium">
-                Unique
-              </span>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-text-muted truncate">
-              <span>{Object.keys(questionTitles).length || 10} Total catalog challenges</span>
-            </div>
-          </div>
-
-          {/* Card 4: Primary Language */}
-          <div className="rounded-xl bg-surface-container p-5 border border-white/5 transition-transform duration-200 hover:-translate-y-0.5 shadow-xl">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
-                Primary Language
-              </span>
-              <Cpu className="h-4 w-4 text-status-warning" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-display text-2xl font-bold text-text-primary">{primaryLanguage.name}</span>
-              {submissions.length > 0 && (
-                <span className="font-mono text-xs text-status-accepted font-semibold">{primaryLanguage.percent}%</span>
-              )}
-            </div>
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-warning" />
-              <span>Most frequent evaluation target</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter & Search Command Strip */}
-        <div className="flex flex-col lg:flex-row gap-3 p-2 rounded-xl bg-surface-container/70 backdrop-blur-md border border-white/5">
-          {/* Search Input */}
-          <div className="relative flex-1 min-w-[260px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted h-3.5 w-3.5" />
-            <input
-              type="text"
-              placeholder="Filter by problem name or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-12 py-2 rounded-lg bg-surface-elevated text-text-primary text-xs placeholder:text-text-muted focus:outline-none focus:bg-surface-hover transition-colors border border-white/5"
-            />
-            <kbd className="font-mono text-[10px] text-text-muted absolute right-2.5 top-1/2 -translate-y-1/2 bg-surface-container-high px-1.5 py-0.5 rounded select-none">
-              ⌘K
-            </kbd>
-          </div>
-
-          {/* Language Filters */}
-          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
-            <span className="font-mono text-[10px] uppercase text-text-muted px-2 shrink-0">Lang:</span>
-            {["All", "Python", "cpp", "javascript"].map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setLanguageFilter(lang)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-colors cursor-pointer ${
-                  languageFilter.toLowerCase() === lang.toLowerCase()
-                    ? "bg-primary-container text-on-primary-container shadow-xs"
-                    : "text-text-secondary hover:text-text-primary hover:bg-surface-elevated"
-                }`}
-              >
-                {lang === "cpp" ? "C++" : lang === "javascript" ? "JS" : lang}
-              </button>
-            ))}
-          </div>
-
-          {/* Verdict Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-            <span className="font-mono text-[10px] uppercase text-text-muted px-2 shrink-0">Verdict:</span>
-            {["All", "Accepted", "WrongAnswer", "TLE", "MLE", "CompileError", "RuntimeError"].map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setStatusFilter(v)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-colors cursor-pointer ${
-                  statusFilter === v
-                    ? "bg-surface-elevated text-text-primary border border-white/10 font-semibold"
-                    : "text-text-secondary hover:text-text-primary hover:bg-surface-elevated"
-                }`}
-              >
-                {v === "WrongAnswer"
-                  ? "Wrong Answer"
-                  : v === "CompileError"
-                    ? "Compile Error"
-                    : v === "RuntimeError"
-                      ? "Runtime Error"
-                      : v}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Main Workspace Split: Table (65%) & Inspector Drawer (35%) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Submissions Table (8 Cols) */}
-          <div className="lg:col-span-8 flex flex-col bg-surface-container rounded-xl overflow-hidden shadow-lg border border-white/5">
-            {/* Table Top Meta Bar */}
-            <div className="px-5 py-3.5 bg-surface-container-high/60 flex items-center justify-between border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="font-display text-sm text-text-primary font-semibold">Evaluation Log</span>
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-container-highest text-text-muted">
-                  {filteredSubmissions.length} runs displayed
-                </span>
+        {error ? (
+          <Card className="mb-6 border-status-error/30 bg-status-error/5">
+            <CardContent className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-status-error" />
+                <div>
+                  <p className="text-sm font-medium text-text-primary">Could not load submissions</p>
+                  <p className="mt-0.5 text-xs text-text-muted">{error}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-text-muted font-mono">
-                <span className="inline-block w-2 h-2 rounded-full bg-status-accepted animate-pulse" />
-                <span>Judge Sync OK</span>
+              <Button variant="secondary" onClick={loadSubmissions}>
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <section aria-label="Submission statistics" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {statsLoading || !stats ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index}>
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-3 w-24" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-3 w-28" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <>
+              <StatCard
+                label="Total submissions"
+                value={String(stats.totalSubmissions)}
+                detail={`${stats.recentSubmissions} in the last 7 days`}
+                icon={Send}
+                accent="text-tertiary"
+              />
+              <StatCard
+                label="Accepted"
+                value={String(stats.acceptedSubmissions)}
+                detail={`${acceptanceRate}% acceptance rate`}
+                icon={CheckCircle2}
+                accent="text-status-accepted"
+              />
+              <StatCard
+                label="Problems solved"
+                value={`${stats.solvedCount} / ${stats.totalQuestions}`}
+                detail={`${stats.attemptedCount} problems attempted`}
+                icon={Target}
+                accent="text-primary"
+              />
+              <StatCard
+                label="Active days"
+                value={String(stats.activeDays)}
+                detail={`Longest streak: ${stats.longestStreak} days`}
+                icon={Clock}
+                accent="text-status-warning"
+              />
+            </>
+          )}
+        </section>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <Card className="overflow-hidden lg:col-span-8">
+            <CardHeader className="gap-3 border-b border-border-hairline">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base">Submission history</CardTitle>
+                  <p className="mt-1 text-xs text-text-muted">
+                    {loading
+                      ? "Loading submissions…"
+                      : `${pagination.total} ${pagination.total === 1 ? "submission" : "submissions"} found`}
+                  </p>
+                </div>
+                {hasActiveFilters ? (
+                  <Button variant="ghost" size="sm" onClick={resetFilters}>
+                    <X />
+                    Clear filters
+                  </Button>
+                ) : null}
               </div>
-            </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+                  <Input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search by problem title"
+                    aria-label="Search submissions"
+                    className="pl-9"
+                  />
+                </div>
+                <Select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  aria-label="Filter by verdict"
+                  className="sm:w-44"
+                >
+                  {VERDICT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={languageFilter}
+                  onChange={(event) => setLanguageFilter(event.target.value)}
+                  aria-label="Filter by language"
+                  className="sm:w-36"
+                >
+                  {LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </CardHeader>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="bg-surface-container-high/30 font-mono text-[10px] uppercase text-text-muted tracking-wider border-b border-white/5">
-                    <th className="py-3 px-4 font-semibold">Verdict</th>
-                    <th className="py-3 px-4 font-semibold">Problem</th>
-                    <th className="py-3 px-4 font-semibold">Pass Rate</th>
-                    <th className="py-3 px-4 font-semibold">Verification</th>
-                    <th className="py-3 px-4 font-semibold">Language</th>
-                    <th className="py-3 px-4 font-semibold">Submitted</th>
-                    <th className="py-3 px-4 font-semibold text-right">Action</th>
+                  <tr className="border-b border-border-hairline bg-surface-container-low/40 text-[11px] uppercase tracking-wide text-text-muted">
+                    <th scope="col" className="px-4 py-3 font-medium">Verdict</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Problem</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Passed</th>
+                    <th scope="col" className="hidden px-4 py-3 font-medium sm:table-cell">Language</th>
+                    <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">Submitted</th>
+                    <th scope="col" className="w-10 px-4 py-3" />
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-border-hairline">
                   {loading ? (
+                    Array.from({ length: 6 }).map((_, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-4"><Skeleton className="h-5 w-24 rounded-full" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-4 w-40" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-4 w-12" /></td>
+                        <td className="hidden px-4 py-4 sm:table-cell"><Skeleton className="h-5 w-16" /></td>
+                        <td className="hidden px-4 py-4 md:table-cell"><Skeleton className="h-4 w-20" /></td>
+                        <td className="px-4 py-4"><Skeleton className="h-4 w-4" /></td>
+                      </tr>
+                    ))
+                  ) : submissions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
-                        <div className="inline-flex items-center gap-2 font-mono text-xs">
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-container border-t-transparent" />
-                          <span>Retrieving submissions ledger...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : filteredSubmissions.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted text-xs">
-                        No submissions recorded matching your filters.
+                      <td colSpan={6} className="p-0">
+                        <EmptyState
+                          icon={History}
+                          title={hasActiveFilters ? "No matching submissions" : "No submissions yet"}
+                          description={
+                            hasActiveFilters
+                              ? "Try a different search term or clear the active filters."
+                              : "Solve a problem and submit your code to start building your history."
+                          }
+                          className="rounded-none border-0 bg-transparent"
+                          action={
+                            hasActiveFilters ? (
+                              <Button variant="secondary" size="sm" onClick={resetFilters}>
+                                Clear filters
+                              </Button>
+                            ) : (
+                              <Button variant="primary" size="sm" asChild>
+                                <Link to="/">
+                                  Browse problems
+                                  <ArrowRight />
+                                </Link>
+                              </Button>
+                            )
+                          }
+                        />
                       </td>
                     </tr>
                   ) : (
-                    filteredSubmissions.map((sub) => {
-                      const isSelected = selectedSub?.id === sub.id;
+                    submissions.map((submission) => {
+                      const meta = getStatusMeta(submission.status);
+                      const isSelected = selectedSub?.id === submission.id;
+                      const passPercent = Math.round(
+                        (submission.passedCount / Math.max(submission.totalCount, 1)) * 100,
+                      );
+
                       return (
                         <tr
-                          key={sub.id}
-                          onClick={() => setSelectedSub(sub)}
-                          className={`group hover:bg-surface-hover/50 cursor-pointer transition-colors ${
+                          key={submission.id}
+                          tabIndex={0}
+                          aria-selected={isSelected}
+                          onClick={() => setSelectedSub(submission)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setSelectedSub(submission);
+                            }
+                          }}
+                          className={`cursor-pointer transition-colors hover:bg-surface-hover/50 ${
                             isSelected ? "bg-surface-hover/70" : ""
                           }`}
                         >
-                          {/* Verdict */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {renderVerdictBadge(sub.status)}
+                          <td className="whitespace-nowrap px-4 py-3.5">
+                            <Badge variant={meta.tone}>{meta.label}</Badge>
                           </td>
-
-                          {/* Problem Title */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="px-4 py-3.5">
                             <div className="flex flex-col">
-                              <span className="font-sans text-xs font-semibold text-text-primary group-hover:text-primary transition-colors">
-                                {questionTitles[sub.questionId] || sub.questionId}
+                              <span className="max-w-[240px] truncate text-xs font-medium text-text-primary">
+                                {submission.question?.title ?? submission.questionId}
                               </span>
                               <span className="font-mono text-[10px] text-text-muted">
-                                #{sub.questionId}
+                                {submission.question?.difficulty ?? ""}
                               </span>
                             </div>
                           </td>
-
-                          {/* Pass Rate */}
-                          <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
-                            <span className={`font-semibold ${sub.status === "Success" ? "text-status-accepted" : "text-text-primary"}`}>
-                              {Math.round((sub.passedCount / Math.max(sub.totalCount, 1)) * 100)}%
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-text-primary">
+                                {submission.passedCount}/{submission.totalCount}
+                              </span>
+                              <div className="hidden h-1 w-12 overflow-hidden rounded-full bg-surface-container sm:block">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    passPercent === 100 ? "bg-status-accepted" : "bg-status-warning"
+                                  }`}
+                                  style={{ width: `${passPercent}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="hidden whitespace-nowrap px-4 py-3.5 sm:table-cell">
+                            <span className="font-mono text-[11px] uppercase text-text-secondary">
+                              {submission.language}
                             </span>
                           </td>
-
-                          {/* Verification pass count */}
-                          <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
-                            <span className="px-2 py-0.5 rounded bg-surface-container-highest text-text-primary border border-white/5">
-                              {sub.passedCount} / {sub.totalCount} Passed
-                            </span>
+                          <td
+                            className="hidden whitespace-nowrap px-4 py-3.5 font-mono text-[11px] text-text-muted md:table-cell"
+                            title={formatDateTime(submission.createdAt)}
+                          >
+                            {formatRelativeTime(submission.createdAt)}
                           </td>
-
-                          {/* Language */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="font-mono text-[11px] text-text-secondary bg-surface-container-highest px-2 py-0.5 rounded border border-white/5 uppercase">
-                              {sub.language}
-                            </span>
-                          </td>
-
-                          {/* Timestamp */}
-                          <td className="py-3.5 px-4 whitespace-nowrap text-text-muted text-xs font-mono">
-                            {new Date(sub.createdAt).toLocaleDateString()}
-                          </td>
-
-                          {/* Action */}
-                          <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedSub(sub);
-                              }}
-                              className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary font-mono text-xs px-2 py-1 rounded hover:bg-surface-elevated transition-all cursor-pointer"
-                            >
-                              <span>Inspect</span>
-                              <ArrowUpRight className="h-3 w-3" />
-                            </button>
+                          <td className="px-4 py-3.5 text-right">
+                            <ChevronRight className="ml-auto h-3.5 w-3.5 text-text-muted" />
                           </td>
                         </tr>
                       );
@@ -516,171 +608,218 @@ export default function Submissions() {
                 </tbody>
               </table>
             </div>
-          </div>
 
-          {/* Slide-Over Code & Benchmark Inspector Drawer (4 Cols) */}
-          <div className="lg:col-span-4 flex flex-col space-y-4">
-            {selectedSub ? (
-              <div className="bg-surface-container rounded-xl overflow-hidden shadow-2xl flex flex-col border border-white/5">
-                {/* Drawer Header */}
-                <div className="p-4 bg-surface-container-high/80 flex flex-col gap-2 border-b border-white/5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {renderVerdictBadge(selectedSub.status)}
-                      <span className="font-mono text-[11px] text-text-muted">
-                        ID: #{selectedSub.id.slice(0, 8)}
+            {pagination.totalPages > 1 ? (
+              <div className="border-t border-border-hairline p-4">
+                <Pagination
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            ) : null}
+          </Card>
+
+          <div className="lg:col-span-4">
+            <Card className="lg:sticky lg:top-20">
+              {selected && selectedMeta ? (
+                <>
+                  <CardHeader className="gap-2 border-b border-border-hairline">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant={selectedMeta.tone}>{selectedMeta.label}</Badge>
+                      <span className="font-mono text-[10px] text-text-muted">
+                        {selected.id.slice(0, 8)}
                       </span>
                     </div>
-
-                    <span className="font-mono text-[10px] text-text-muted">
-                      {new Date(selectedSub.createdAt).toLocaleTimeString()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-baseline justify-between mt-1">
                     <div>
-                      <h3 className="font-display text-sm text-text-primary font-bold">
-                        {questionTitles[selectedSub.questionId] || selectedSub.questionId}
-                      </h3>
-                      <span className="text-xs text-text-muted font-mono uppercase">
-                        Language: {selectedSub.language}
-                      </span>
+                      <CardTitle className="text-sm">
+                        {selected.question?.title ?? selected.questionId}
+                      </CardTitle>
+                      <p className="mt-1 text-[11px] text-text-muted">
+                        {formatRelativeTime(selected.createdAt)} · {selected.language}
+                      </p>
                     </div>
+                  </CardHeader>
 
-                    <span className="px-2 py-0.5 rounded bg-primary-container/20 text-primary font-mono text-[11px] font-semibold border border-primary/20">
-                      Standard
-                    </span>
-                  </div>
-                </div>
-
-                {/* Verification Suite Evaluation Card */}
-                <div className="p-4 bg-surface-elevated space-y-3 border-b border-white/5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-[10px] uppercase text-text-muted tracking-wider">
-                      Verification Suite
-                    </span>
-                    <span className={`font-mono text-xs font-semibold ${selectedSub.status === "Success" ? "text-status-accepted" : "text-text-primary"}`}>
-                      {selectedSub.passedCount} / {selectedSub.totalCount} Cases ({Math.round((selectedSub.passedCount / Math.max(selectedSub.totalCount, 1)) * 100)}%)
-                    </span>
-                  </div>
-
-                  {/* Micro Jewels Visualization */}
-                  <div
-                    className="grid gap-1 w-full pt-1"
-                    style={{
-                      gridTemplateColumns: `repeat(${Math.min(selectedSub.totalCount || 10, 25)}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {Array.from({ length: selectedSub.totalCount || 10 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-2 rounded-[1px] ${
-                          i < selectedSub.passedCount ? "bg-status-accepted" : "bg-status-error"
-                        }`}
-                        title={`Test Case ${i + 1}: ${i < selectedSub.passedCount ? "Passed" : "Failed"}`}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Target Complexity & Approach Specs */}
-                  {selectedEditorial && (
-                    <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                      <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
-                        <span className="font-mono text-[10px] text-text-muted uppercase">Target Complexity</span>
-                        <span className="font-mono text-xs font-semibold text-text-primary mt-0.5">
-                          {selectedEditorial.timeComplexity} • {selectedEditorial.spaceComplexity}
-                        </span>
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-md border border-border-hairline bg-surface-base p-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-text-muted">
+                          Test cases
+                        </p>
+                        <p className="mt-1 font-mono text-sm font-semibold text-text-primary">
+                          {selected.passedCount} / {selected.totalCount}
+                        </p>
                       </div>
-                      <div className="p-2 rounded bg-surface-container-high/60 flex flex-col border border-white/5">
-                        <span className="font-mono text-[10px] text-text-muted uppercase">Algorithmic Pattern</span>
-                        <span className="font-mono text-xs font-semibold text-status-accepted mt-0.5 truncate" title={selectedEditorial.approach}>
-                          {selectedEditorial.approach}
-                        </span>
+                      <div className="rounded-md border border-border-hairline bg-surface-base p-2.5">
+                        <p className="text-[10px] uppercase tracking-wide text-text-muted">
+                          Language
+                        </p>
+                        <p className="mt-1 font-mono text-sm font-semibold text-text-primary">
+                          {LANGUAGE_OPTIONS.find((option) => option.value === selected.language)?.label ??
+                            selected.language}
+                        </p>
                       </div>
                     </div>
-                  )}
 
-                  {/* Judge Output Log if present */}
-                  {selectedSub.output && (
-                    <div className="p-2.5 rounded bg-surface-base border border-white/5 space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-mono text-text-muted uppercase">
-                        <span>Judge Output:</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCode(selectedSub.output || "")}
-                          className="hover:text-text-primary flex items-center gap-1 cursor-pointer font-sans normal-case"
+                    {detailLoading ? (
+                      <Skeleton className="h-8 w-full" />
+                    ) : caseResults.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-text-muted">
+                          <span>Per-test results</span>
+                          <span>
+                            {caseResults.filter((result) => result.passed).length} passed
+                          </span>
+                        </div>
+                        <div
+                          className="grid gap-1"
+                          style={{
+                            gridTemplateColumns: `repeat(${Math.min(caseResults.length, 30)}, minmax(0, 1fr))`,
+                          }}
                         >
-                          <Copy className="h-3 w-3" />
-                          <span>Copy</span>
-                        </button>
+                          {caseResults.map((result, index) => (
+                            <div
+                              key={result.id}
+                              className={`h-2 rounded-[2px] ${
+                                result.passed
+                                  ? "bg-status-accepted"
+                                  : result.timedOut
+                                    ? "bg-status-warning"
+                                    : "bg-status-error"
+                              }`}
+                              title={`Test case ${index + 1}: ${
+                                result.passed
+                                  ? "Passed"
+                                  : result.timedOut
+                                    ? "Timed out"
+                                    : "Failed"
+                              }`}
+                            />
+                          ))}
+                        </div>
                       </div>
-                      <pre className="font-mono text-xs text-text-primary whitespace-pre-wrap max-h-24 overflow-y-auto">
-                        {selectedSub.output}
-                      </pre>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-text-muted">
+                          <span>Pass rate</span>
+                          <span>
+                            {Math.round(
+                              (selected.passedCount / Math.max(selected.totalCount, 1)) * 100,
+                            )}
+                            %
+                          </span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
+                          <div
+                            className="h-full rounded-full bg-status-accepted"
+                            style={{
+                              width: `${Math.round(
+                                (selected.passedCount / Math.max(selected.totalCount, 1)) * 100,
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selected.output ? (
+                      <div className="space-y-1.5 rounded-md border border-border-hairline bg-surface-base p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] uppercase tracking-wide text-text-muted">Output</p>
+                          <button
+                            type="button"
+                            onClick={() => copyText(selected.output ?? "", "output")}
+                            className="flex items-center gap-1 text-[11px] text-text-muted transition-colors hover:text-text-primary"
+                          >
+                            {copiedTarget === "output" ? (
+                              <CheckCircle2 className="h-3 w-3 text-status-accepted" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            Copy
+                          </button>
+                        </div>
+                        <pre className="max-h-24 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-text-primary">
+                          {selected.output}
+                        </pre>
+                      </div>
+                    ) : null}
+
+                    <div className="overflow-hidden rounded-md border border-border-hairline">
+                      <div className="flex items-center justify-between border-b border-border-hairline bg-surface-container-low px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <FileCode2 className="h-3.5 w-3.5 text-text-muted" />
+                          <span className="font-mono text-[11px] text-text-primary">
+                            solution.{selected.language === "cpp" ? "cpp" : selected.language}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => copyText(selected.code, "code")}
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
+                          >
+                            {copiedTarget === "code" ? (
+                              <CheckCircle2 className="h-3 w-3 text-status-accepted" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            Copy
+                          </button>
+                          <Button variant="ghost" size="sm" onClick={() => openInEditor(selected)}>
+                            Open in editor
+                            <ArrowRight />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="h-64">
+                        <MonacoEditor
+                          height="100%"
+                          language={selected.language}
+                          value={selected.code}
+                          beforeMount={defineObsidianTheme}
+                          theme={OBSIDIAN_THEME}
+                          options={{
+                            readOnly: true,
+                            domReadOnly: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            fontSize: 12,
+                            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                            lineNumbers: "on",
+                            renderLineHighlight: "none",
+                            padding: { top: 8, bottom: 8 },
+                            scrollbar: { verticalScrollbarSize: 5 },
+                            overviewRulerBorder: false,
+                          }}
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                {/* Code Viewer Panel */}
-                <div className="flex flex-col bg-surface-base">
-                  <div className="px-4 py-2 bg-surface-container-high flex items-center justify-between border-b border-white/5">
-                    <div className="flex items-center gap-1.5">
-                      <FileCode2 className="h-3.5 w-3.5 text-text-muted" />
-                      <span className="font-mono text-xs text-text-primary font-medium">
-                        solution_{selectedSub.language}.code
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyCode(selectedSub.code)}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-surface-elevated hover:bg-surface-hover text-text-secondary hover:text-text-primary text-[11px] font-mono transition-colors cursor-pointer border border-white/5"
-                      >
-                        {copied ? <Check className="h-3 w-3 text-status-accepted" /> : <Copy className="h-3 w-3" />}
-                        <span>{copied ? "Copied" : "Copy Code"}</span>
-                      </button>
-
-                      <Link
-                        to={`/problem/${selectedSub.questionId}`}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-primary-container/20 hover:bg-primary-container text-primary hover:text-on-primary-container text-[11px] font-mono transition-all font-medium border border-primary/20"
-                      >
-                        <GitFork className="h-3 w-3" />
-                        <span>Fork to IDE</span>
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="h-64 overflow-hidden">
-                    <MonacoEditor
-                      height="100%"
-                      language={selectedSub.language === "cpp" ? "cpp" : selectedSub.language}
-                      value={selectedSub.code}
-                      theme="obsidian-precision"
-                      options={{
-                        readOnly: true,
-                        domReadOnly: true,
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                        lineNumbers: "on",
-                        renderLineHighlight: "none",
-                        padding: { top: 8, bottom: 8 },
-                        scrollbar: { verticalScrollbarSize: 5 },
-                        overviewRulerBorder: false,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-surface-container rounded-xl p-8 text-center text-text-muted text-xs border border-white/5">
-                Select a submission row from the ledger to inspect source code and benchmark telemetry.
-              </div>
-            )}
+                    <p className="text-[11px] text-text-muted">
+                      Submitted {formatDateTime(selected.createdAt)}
+                    </p>
+                  </CardContent>
+                </>
+              ) : (
+                <CardContent className="p-6">
+                  <EmptyState
+                    icon={History}
+                    title="Select a submission"
+                    description="Choose a row to inspect the verdict, test results, and source code."
+                    className="border-0 bg-transparent"
+                  />
+                </CardContent>
+              )}
+            </Card>
           </div>
         </div>
+
+        <p className="mt-4 text-[11px] text-text-muted">
+          Most used language: {languageSummary}
+        </p>
       </main>
     </div>
   );
