@@ -85,16 +85,16 @@ export const streamSubmissionProgress = async (req: Request, res: Response) => {
       try {
         const parsed = JSON.parse(message);
         if (parsed.type === "completed") {
-          subscriber.unsubscribe(channel).catch(() => {});
-          subscriber.disconnect().catch(() => {});
+          subscriber.unsubscribe(channel).catch(() => { });
+          subscriber.disconnect().catch(() => { });
           res.end();
         }
-      } catch {}
+      } catch { }
     });
 
     req.on("close", () => {
-      subscriber.unsubscribe(channel).catch(() => {});
-      subscriber.disconnect().catch(() => {});
+      subscriber.unsubscribe(channel).catch(() => { });
+      subscriber.disconnect().catch(() => { });
     });
   } catch (err) {
     console.error("streamSubmissionProgress error:", err);
@@ -366,7 +366,7 @@ export const runCode = async (req: Request, res: Response) => {
       if (blockingRedis && blockingRedis.isOpen) {
         try {
           await blockingRedis.disconnect();
-        } catch {}
+        } catch { }
       }
     }
 
