@@ -117,6 +117,13 @@ export default function Editor() {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const runActionRef = useRef<() => void>(() => {});
   const submitActionRef = useRef<() => void>(() => {});
+  const draftSnapshotRef = useRef({ questionId: "", language: "python", code: "" });
+
+  draftSnapshotRef.current = {
+    questionId: question?.id ?? "",
+    language,
+    code,
+  };
 
   usePageTitle(question?.title ?? "Problem");
 
@@ -135,6 +142,12 @@ export default function Editor() {
 
     async function loadProblem() {
       if (!id) return;
+
+      const previousDraft = draftSnapshotRef.current;
+      if (previousDraft.questionId && previousDraft.questionId !== id) {
+        saveDraft(previousDraft.questionId, previousDraft.language, previousDraft.code);
+      }
+
       setLoading(true);
       setLoadError(null);
       setRunResult(null);
@@ -207,6 +220,11 @@ export default function Editor() {
     return () => {
       unsubscribeRef.current?.();
       if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+
+      const snapshot = draftSnapshotRef.current;
+      if (snapshot.questionId) {
+        saveDraft(snapshot.questionId, snapshot.language, snapshot.code);
+      }
     };
   }, []);
 
