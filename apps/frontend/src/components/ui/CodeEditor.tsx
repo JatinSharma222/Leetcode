@@ -8,6 +8,8 @@ interface CodeEditorProps {
   code: string;
   onChange: (newCode: string) => void;
   language: string;
+  onRun?: () => void;
+  onSubmit?: () => void;
   onReset?: () => void;
   disabled?: boolean;
 }
@@ -22,6 +24,8 @@ export default function CodeEditor({
   code,
   onChange,
   language,
+  onRun,
+  onSubmit,
   onReset,
   disabled = false,
 }: CodeEditorProps) {
@@ -29,10 +33,30 @@ export default function CodeEditor({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [minimapEnabled, setMinimapEnabled] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onRunRef = useRef(onRun);
+  const onSubmitRef = useRef(onSubmit);
+
+  onRunRef.current = onRun;
+  onSubmitRef.current = onSubmit;
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     defineObsidianTheme(monaco);
     monaco.editor.setTheme(OBSIDIAN_THEME);
+
+    editor.onKeyDown((event) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+
+      if (event.keyCode === monaco.KeyCode.Enter) {
+        event.preventDefault();
+        event.stopPropagation();
+        onSubmitRef.current?.();
+      } else if (event.keyCode === monaco.KeyCode.Quote) {
+        event.preventDefault();
+        event.stopPropagation();
+        onRunRef.current?.();
+      }
+    });
+
     editor.focus();
   };
 

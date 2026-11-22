@@ -416,16 +416,35 @@ export default function Editor() {
   runActionRef.current = handleRunCode;
   submitActionRef.current = handleSubmitCode;
 
+  const shortcutGuardRef = useRef({ run: 0, submit: 0 });
+
+  const runFromShortcut = () => {
+    const now = performance.now();
+    if (now - shortcutGuardRef.current.run < 120) return;
+    shortcutGuardRef.current.run = now;
+    runActionRef.current();
+  };
+
+  const submitFromShortcut = () => {
+    const now = performance.now();
+    if (now - shortcutGuardRef.current.submit < 120) return;
+    shortcutGuardRef.current.submit = now;
+    submitActionRef.current();
+  };
+
+  const shortcutActionsRef = useRef({ run: runFromShortcut, submit: submitFromShortcut });
+  shortcutActionsRef.current = { run: runFromShortcut, submit: submitFromShortcut };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
 
       if (event.key === "Enter") {
         event.preventDefault();
-        submitActionRef.current();
+        shortcutActionsRef.current.submit();
       } else if (event.key === "'") {
         event.preventDefault();
-        runActionRef.current();
+        shortcutActionsRef.current.run();
       }
     };
 
@@ -984,6 +1003,8 @@ export default function Editor() {
               code={code}
               onChange={handleCodeChange}
               language={language}
+              onRun={runFromShortcut}
+              onSubmit={submitFromShortcut}
               onReset={handleResetCode}
               disabled={isSubmitting || isRunning}
             />
