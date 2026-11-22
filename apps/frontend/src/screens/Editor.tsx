@@ -280,6 +280,7 @@ export default function Editor() {
 
   const handleRunCode = async () => {
     if (!question || isRunning || isSubmitting) return;
+    persistDraft(code, language);
     setIsRunning(true);
     setRunResult(null);
     setRunError(null);
@@ -307,6 +308,7 @@ export default function Editor() {
   const handleSubmitCode = async () => {
     if (!question || isSubmitting || isRunning) return;
 
+    persistDraft(code, language);
     unsubscribeRef.current?.();
     unsubscribeRef.current = null;
 

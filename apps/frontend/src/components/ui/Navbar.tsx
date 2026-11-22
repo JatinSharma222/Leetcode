@@ -16,6 +16,7 @@ export default function Navbar() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
 
   const username = user?.username || getSavedUsername() || "Developer";
 
@@ -46,7 +47,11 @@ export default function Navbar() {
       if (showProfileMenu && !profileMenuRef.current?.contains(target)) {
         setShowProfileMenu(false);
       }
-      if (showMobileMenu && !mobileMenuRef.current?.contains(target)) {
+      if (
+        showMobileMenu &&
+        !mobileMenuRef.current?.contains(target) &&
+        !mobileToggleRef.current?.contains(target)
+      ) {
         setShowMobileMenu(false);
       }
     };
@@ -165,6 +170,7 @@ export default function Navbar() {
             variant="ghost"
             size="icon"
             className="md:hidden"
+            ref={mobileToggleRef}
             onClick={() => {
               setShowMobileMenu((prev) => !prev);
               setShowProfileMenu(false);
