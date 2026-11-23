@@ -420,7 +420,7 @@ export default function Submissions() {
               <StatCard
                 label="Active days"
                 value={String(stats.activeDays)}
-                detail={`Longest streak: ${stats.longestStreak} days`}
+                detail={`Longest streak: ${stats.longestStreak} ${stats.longestStreak === 1 ? "day" : "days"}`}
                 icon={Clock}
                 accent="text-status-warning"
               />
