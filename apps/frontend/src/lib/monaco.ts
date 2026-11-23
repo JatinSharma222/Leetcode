@@ -26,7 +26,7 @@ export function defineObsidianTheme(monaco: Monaco) {
       "editorCursor.foreground": "#D91E45",
       "editorLineNumber.foreground": "#4B5563",
       "editorLineNumber.activeForeground": "#F9FAFB",
-      "editor.selectionHighlightBackground": "#D91E4520",
+      "editor.selectionHighlightBackground": "#FFFFFF14",
       "editorBracketMatch.background": "#D91E4530",
       "editorBracketMatch.border": "#D91E4580",
       "editorIndentGuide.background": "#1F1F28",

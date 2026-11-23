@@ -125,6 +125,6 @@ export function getDateKey(date: Date): string {
 }
 
 export function getModifierKey(): string {
-  if (typeof navigator === "undefined") return "Ctrl";
-  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? "⌘" : "Ctrl";
+  if (typeof navigator === "undefined") return "Ctrl+";
+  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent) ? "⌘" : "Ctrl+";
 }

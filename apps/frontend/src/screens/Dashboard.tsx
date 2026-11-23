@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router";
 import {
   AlertTriangle,
   ArrowRight,
-  Bookmark,
   CheckCircle2,
   Circle,
   History,
@@ -481,7 +480,7 @@ export default function Dashboard() {
 
         {!loading && questions.length > 0 && questions.length >= 100 ? (
           <p className="mt-4 flex items-center gap-1.5 text-[11px] text-text-muted">
-            <Bookmark className="h-3 w-3" />
+            <Search className="h-3 w-3" />
             Showing the first 100 problems. Use search to narrow the list.
           </p>
         ) : null}
