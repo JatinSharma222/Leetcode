@@ -263,6 +263,15 @@ export default function Editor() {
     }, 600);
   };
 
+  const clearEvaluationState = () => {
+    setRunResult(null);
+    setRunError(null);
+    setSubmissionResult(null);
+    setSubmitError(null);
+    setLiveProgress(null);
+    setPollTimedOut(false);
+  };
+
   const handleLanguageChange = (nextLanguage: string) => {
     if (!question || nextLanguage === language) return;
 
@@ -273,10 +282,7 @@ export default function Editor() {
     const draft = getDraft(question.id, nextLanguage);
     setCode(draft ?? getCodeTemplate(nextLanguage, question.id));
     setDraftStatus(draft ? "saved" : "idle");
-    setRunResult(null);
-    setSubmissionResult(null);
-    setSubmitError(null);
-    setRunError(null);
+    clearEvaluationState();
   };
 
   const handleResetCode = () => {
@@ -297,6 +303,7 @@ export default function Editor() {
     clearDraft(question.id, language);
     setCode(template);
     setDraftStatus("idle");
+    clearEvaluationState();
     toast("Starter code restored");
   };
 
@@ -928,6 +935,7 @@ export default function Editor() {
                             {submission.code ? (
                               <button
                                 type="button"
+                                disabled={isRunning || isSubmitting}
                                 onClick={() => {
                                   persistDraft(code, language);
                                   setLanguage(submission.language);
@@ -935,9 +943,10 @@ export default function Editor() {
                                   setCode(submission.code);
                                   saveDraft(question.id, submission.language, submission.code);
                                   setDraftStatus("saved");
+                                  clearEvaluationState();
                                   toast("Submission loaded into the editor");
                                 }}
-                                className="text-primary transition-colors hover:text-text-primary"
+                                className="text-primary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Load code
                               </button>
