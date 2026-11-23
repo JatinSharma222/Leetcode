@@ -11,8 +11,6 @@ import { usePageTitle } from "@/lib/usePageTitle";
 type AuthMode = "signin" | "signup";
 
 export default function AuthCredentials() {
-  usePageTitle("Sign in");
-
   const navigate = useNavigate();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
@@ -21,6 +19,8 @@ export default function AuthCredentials() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  usePageTitle(mode === "signin" ? "Sign in" : "Create account");
 
   const validate = (): string | null => {
     const trimmedUsername = username.trim();

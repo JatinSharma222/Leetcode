@@ -67,6 +67,12 @@ const LANGUAGE_OPTIONS = [
   { value: "javascript", label: "JavaScript" },
 ];
 
+const LANGUAGE_EXTENSIONS: Record<string, string> = {
+  python: "py",
+  cpp: "cpp",
+  javascript: "js",
+};
+
 const EMPTY_PAGINATION: PaginationMetadata = {
   page: 1,
   limit: PAGE_SIZE,
@@ -751,7 +757,7 @@ export default function Submissions() {
                         <div className="flex items-center gap-1.5">
                           <FileCode2 className="h-3.5 w-3.5 text-text-muted" />
                           <span className="font-mono text-[11px] text-text-primary">
-                            solution.{selected.language === "cpp" ? "cpp" : selected.language}
+                            solution.{LANGUAGE_EXTENSIONS[selected.language] ?? selected.language}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
