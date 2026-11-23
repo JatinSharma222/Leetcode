@@ -1,12 +1,31 @@
-const DRAFT_STORAGE_KEY = "ateliercode:drafts:v1";
+import { scopedStorageKey } from "./storage";
+
+const DRAFT_STORAGE_KEY = "ateliercode:drafts:v2";
+const LEGACY_DRAFT_STORAGE_KEY = "ateliercode:drafts:v1";
 const LANGUAGE_STORAGE_KEY = "ateliercode:language";
-export const FORK_STORAGE_KEY = "ateliercode:fork:v1";
+export const FORK_STORAGE_KEY = "ateliercode:fork:v2";
 
 type DraftStore = Record<string, Record<string, string>>;
 
+function migrateLegacyDrafts() {
+  try {
+    const legacy = localStorage.getItem(LEGACY_DRAFT_STORAGE_KEY);
+    if (!legacy) return;
+
+    const key = scopedStorageKey(DRAFT_STORAGE_KEY);
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, legacy);
+    }
+    localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
+  } catch {
+    // Ignore migration failures.
+  }
+}
+
 function readDraftStore(): DraftStore {
   try {
-    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    migrateLegacyDrafts();
+    const raw = localStorage.getItem(scopedStorageKey(DRAFT_STORAGE_KEY));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as DraftStore;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -17,7 +36,7 @@ function readDraftStore(): DraftStore {
 
 function writeDraftStore(store: DraftStore) {
   try {
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(store));
+    localStorage.setItem(scopedStorageKey(DRAFT_STORAGE_KEY), JSON.stringify(store));
   } catch {
     // Storage can be unavailable in private browsing or when quota is exceeded.
   }
@@ -76,7 +95,7 @@ export interface ForkPayload {
 
 export function setForkPayload(payload: ForkPayload) {
   try {
-    sessionStorage.setItem(FORK_STORAGE_KEY, JSON.stringify(payload));
+    sessionStorage.setItem(scopedStorageKey(FORK_STORAGE_KEY), JSON.stringify(payload));
   } catch {
     // Ignore storage failures.
   }
@@ -84,9 +103,10 @@ export function setForkPayload(payload: ForkPayload) {
 
 export function consumeForkPayload(questionId: string): ForkPayload | null {
   try {
-    const raw = sessionStorage.getItem(FORK_STORAGE_KEY);
+    const key = scopedStorageKey(FORK_STORAGE_KEY);
+    const raw = sessionStorage.getItem(key);
     if (!raw) return null;
-    sessionStorage.removeItem(FORK_STORAGE_KEY);
+    sessionStorage.removeItem(key);
 
     const parsed = JSON.parse(raw) as ForkPayload;
     if (!parsed || parsed.questionId !== questionId || typeof parsed.code !== "string") {

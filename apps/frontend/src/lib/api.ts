@@ -8,6 +8,10 @@ import type {
   SubmissionStreamEvent,
   UserStats,
 } from "./types";
+import { scopedStorageKey } from "./storage";
+
+const BOOKMARK_STORAGE_KEY = "ateliercode:bookmarks:v2";
+const LEGACY_BOOKMARK_STORAGE_KEY = "bookmarked_problems";
 
 export function getApiBaseUrl(): string {
   // 1. Explicit override via build-time or runtime environment variable
@@ -66,9 +70,29 @@ export function clearAuthSession() {
   localStorage.removeItem("token");
 }
 
+function getBookmarkStorageKey(): string {
+  return scopedStorageKey(BOOKMARK_STORAGE_KEY);
+}
+
+function migrateLegacyBookmarks() {
+  try {
+    const legacy = localStorage.getItem(LEGACY_BOOKMARK_STORAGE_KEY);
+    if (!legacy) return;
+
+    const key = getBookmarkStorageKey();
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, legacy);
+    }
+    localStorage.removeItem(LEGACY_BOOKMARK_STORAGE_KEY);
+  } catch {
+    // Ignore migration failures.
+  }
+}
+
 export function getBookmarkedProblemIds(): string[] {
   try {
-    const raw = localStorage.getItem("bookmarked_problems");
+    migrateLegacyBookmarks();
+    const raw = localStorage.getItem(getBookmarkStorageKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -85,7 +109,7 @@ export function toggleBookmarkedProblem(problemId: string): boolean {
       bookmarks.add(problemId);
       isNowBookmarked = true;
     }
-    localStorage.setItem("bookmarked_problems", JSON.stringify(Array.from(bookmarks)));
+    localStorage.setItem(getBookmarkStorageKey(), JSON.stringify(Array.from(bookmarks)));
     return isNowBookmarked;
   } catch {
     return false;
