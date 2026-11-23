@@ -219,7 +219,10 @@ export default function Editor() {
   useEffect(() => {
     return () => {
       unsubscribeRef.current?.();
-      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+      if (draftTimerRef.current) {
+        window.clearTimeout(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
 
       const snapshot = draftSnapshotRef.current;
       if (snapshot.questionId) {
@@ -237,7 +240,10 @@ export default function Editor() {
   const persistDraft = useCallback(
     (value: string, lang: string) => {
       if (!question) return;
-      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+      if (draftTimerRef.current) {
+        window.clearTimeout(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
       saveDraft(question.id, lang, value);
       setDraftStatus("saved");
     },
@@ -251,6 +257,7 @@ export default function Editor() {
     setDraftStatus("saving");
     if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
     draftTimerRef.current = window.setTimeout(() => {
+      draftTimerRef.current = null;
       saveDraft(question.id, language, value);
       setDraftStatus("saved");
     }, 600);
@@ -283,6 +290,10 @@ export default function Editor() {
       if (!confirmed) return;
     }
 
+    if (draftTimerRef.current) {
+      window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
     clearDraft(question.id, language);
     setCode(template);
     setDraftStatus("idle");
@@ -396,6 +407,10 @@ export default function Editor() {
             } else {
               setPollTimedOut(true);
             }
+          } catch (err) {
+            setSubmitError(
+              err instanceof Error ? err.message : "Could not load the final submission result.",
+            );
           } finally {
             setIsSubmitting(false);
             setLiveProgress(null);
