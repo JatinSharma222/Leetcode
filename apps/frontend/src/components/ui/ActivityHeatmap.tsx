@@ -49,10 +49,13 @@ export default function ActivityHeatmap({
         else if (count >= 1) level = 1;
 
         if (day === 0 && cursor.getUTCMonth() !== lastMonth) {
-          monthLabels.push({
-            label: cursor.toLocaleString("en", { month: "short", timeZone: "UTC" }),
-            column: week,
-          });
+          const lastColumn = monthLabels[monthLabels.length - 1]?.column ?? -3;
+          if (week - lastColumn >= 3) {
+            monthLabels.push({
+              label: cursor.toLocaleString("en", { month: "short", timeZone: "UTC" }),
+              column: week,
+            });
+          }
           lastMonth = cursor.getUTCMonth();
         }
 
